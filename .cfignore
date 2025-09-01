@@ -1,0 +1,10 @@
+# Python files - not needed for frontend build
+requirements.txt
+*.py
+scripts/
+database/
+venv/
+.env*
+
+# Only include frontend files
+!frontend/
