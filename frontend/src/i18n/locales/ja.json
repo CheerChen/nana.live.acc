@@ -28,11 +28,11 @@
     "clearConfirmButton": "クリアする"
   },
   "analysis": {
-    "button": "分析",
+    "button": "達成率計算",
     "loading": "分析中...",
-    "reverse": "逆方向",
-    "resultTitle": "正方向分析結果 - 達成楽曲",
-    "reverseResultTitle": "逆方向分析結果 - MISS楽曲",
+    "reverse": "MISS率計算",
+    "resultTitle": "達成楽曲",
+    "reverseResultTitle": "MISS楽曲",
     "completionRate": "達成率",
     "incompletionRate": "MISS率",
     "subtitle": "選択した公演で演奏された楽曲を出現回数順で表示",
@@ -51,8 +51,8 @@
   },
   "errors": {
     "noShows": "最低1つの公演を選択してください",
-    "analysisFailed": "分析に失敗しました。再試行してください",
-    "reverseAnalysisFailed": "逆方向分析に失敗しました。再試行してください",
+    "analysisFailed": "計算に失敗しました。再試行してください",
+    "reverseAnalysisFailed": "計算に失敗しました。再試行してください",
     "loadShowsFailed": "公演データの読み込みに失敗しました。再試行してください"
   },
   "common": {

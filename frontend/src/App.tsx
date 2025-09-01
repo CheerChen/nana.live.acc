@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import HomePage from './HomePage';
 import './i18n'; // 初始化i18n
+import { initGA, trackPageView } from './utils/analytics';
 
 // 创建主题
 const theme = createTheme({
@@ -59,6 +60,19 @@ const theme = createTheme({
 });
 
 function App() {
+  useEffect(() => {
+    // 延迟初始化确保页面完全加载
+    const timer = setTimeout(() => {
+      // 初始化 Google Analytics
+      initGA();
+      
+      // 跟踪首次页面访问
+      trackPageView(window.location.pathname + window.location.search);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />

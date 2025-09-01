@@ -927,7 +927,7 @@ const HomePage: React.FC = () => {
           <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box>
               <Typography variant="h5" component="h2">
-                {isReverseAnalysis ? t('analysis.reverseResultTitle') : t('analysis.resultTitle')}
+                {isReverseAnalysis ? t('analysis.reverseResultTitle') : t('analysis.resultTitle')} ({songAnalysis.length} / {Math.round(songAnalysis.length / completionRate)})
               </Typography>
               {hasAnalyzed && (
                 <Typography variant="caption" color="text.secondary">
@@ -943,7 +943,7 @@ const HomePage: React.FC = () => {
                 {isReverseAnalysis ? t('analysis.incompletionRate') : t('analysis.completionRate')}: {(completionRate * 100).toFixed(1)}% 
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                {isReverseAnalysis ? t('analysis.incompletionDescription') : t('analysis.completionDescription')} ({songAnalysis.length} / {Math.round(songAnalysis.length / completionRate)})
+                {isReverseAnalysis ? t('analysis.incompletionDescription') : t('analysis.completionDescription')}
               </Typography>
             </Box>
           </Box>

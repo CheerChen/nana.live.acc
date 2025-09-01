@@ -28,11 +28,11 @@
     "clearConfirmButton": "确认清除"
   },
   "analysis": {
-    "button": "分析",
+    "button": "计算达成率",
     "loading": "分析中...",
-    "reverse": "反向",
-    "resultTitle": "正向分析结果 - 达成歌曲",
-    "reverseResultTitle": "反向分析结果 - MISS歌曲",
+    "reverse": "计算MISS率",
+    "resultTitle": "达成歌曲",
+    "reverseResultTitle": "MISS歌曲",
     "completionRate": "达成率",
     "incompletionRate": "MISS率",
     "subtitle": "显示在选定公演中出现的歌曲，按出现次数排序",
@@ -51,8 +51,8 @@
   },
   "errors": {
     "noShows": "请至少选择一场公演",
-    "analysisFailed": "分析失败，请重试",
-    "reverseAnalysisFailed": "反向分析失败，请重试",
+    "analysisFailed": "计算失败，请重试",
+    "reverseAnalysisFailed": "计算失败，请重试",
     "loadShowsFailed": "加载公演数据失败，请重试"
   },
   "common": {
