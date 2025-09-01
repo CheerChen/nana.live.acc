@@ -34,8 +34,6 @@ const LanguageSwitcher: React.FC = () => {
     handleClose();
   };
 
-  const currentLanguage = languages.find(lang => lang.code === i18n.language) || languages[0];
-
   return (
     <>
       <Tooltip title={t('settings.language')}>
