@@ -1,7 +1,22 @@
 {
   "app": {
-    "title": "Setlist Analyzer",
-    "subtitle": "Concert Analysis Tool"
+    "title": "",
+    "subtitle": ""
+  },
+  "modes": {
+    "search": "Search Mode",
+    "multiSelect": "Multi-Select Mode",
+    "switchToSearch": "Switch to Search Mode",
+    "switchToMultiSelect": "Switch to Multi-Select Mode"
+  },
+  "multiSelect": {
+    "title": "Select Performances",
+    "selectAll": "Select All",
+    "deselectAll": "Deselect All",
+    "groupSelect": "Group Select",
+    "showCount": "performances",
+    "selectedCount": "{{count}} performances selected",
+    "noShows": "No performance data available"
   },
   "search": {
     "placeholder": "Search performance name...",
@@ -37,7 +52,8 @@
   "errors": {
     "noShows": "Please select at least one performance",
     "analysisFailed": "Analysis failed, please try again",
-    "reverseAnalysisFailed": "Reverse analysis failed, please try again"
+    "reverseAnalysisFailed": "Reverse analysis failed, please try again",
+    "loadShowsFailed": "Failed to load performance data, please try again"
   },
   "common": {
     "loading": "Loading...",

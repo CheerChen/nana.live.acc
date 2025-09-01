@@ -1,7 +1,22 @@
 {
   "app": {
-    "title": "セットリスト分析",
-    "subtitle": "コンサート分析ツール"
+    "title": "",
+    "subtitle": ""
+  },
+  "modes": {
+    "search": "検索モード",
+    "multiSelect": "選択モード",
+    "switchToSearch": "検索モードに切り替え",
+    "switchToMultiSelect": "選択モードに切り替え"
+  },
+  "multiSelect": {
+    "title": "公演を選択",
+    "selectAll": "全選択",
+    "deselectAll": "全選択解除",
+    "groupSelect": "グループ選択",
+    "showCount": "公演",
+    "selectedCount": "{{count}}公演を選択中",
+    "noShows": "公演データがありません"
   },
   "search": {
     "placeholder": "公演名で検索...",
@@ -37,7 +52,8 @@
   "errors": {
     "noShows": "最低1つの公演を選択してください",
     "analysisFailed": "分析に失敗しました。再試行してください",
-    "reverseAnalysisFailed": "逆方向分析に失敗しました。再試行してください"
+    "reverseAnalysisFailed": "逆方向分析に失敗しました。再試行してください",
+    "loadShowsFailed": "公演データの読み込みに失敗しました。再試行してください"
   },
   "common": {
     "loading": "読み込み中...",

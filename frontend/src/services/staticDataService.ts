@@ -325,6 +325,64 @@ class StaticDataService {
   }
 
   /**
+   * Get all shows sorted by date descending
+   */
+  async getAllShows(): Promise<LiveShow[]> {
+    await this.loadData();
+    
+    // Sort by date descending
+    return [...this.shows].sort((a, b) => b.date.localeCompare(a.date));
+  }
+
+  /**
+   * Group shows by performance series with intelligent day/venue detection
+   */
+  async getGroupedShows(): Promise<{ groupName: string; shows: LiveShow[] }[]> {
+    await this.loadData();
+    
+    // Sort all shows by date descending first
+    const sortedShows = [...this.shows].sort((a, b) => b.date.localeCompare(a.date));
+    
+    // Group shows by series (removing day indicators and venue-specific info)
+    const seriesGroups = new Map<string, LiveShow[]>();
+    
+    sortedShows.forEach(show => {
+      const seriesName = this.extractSeriesName(show.performance_name);
+      
+      if (!seriesGroups.has(seriesName)) {
+        seriesGroups.set(seriesName, []);
+      }
+      seriesGroups.get(seriesName)!.push(show);
+    });
+    
+    // Convert to array and sort by latest date in each group
+    return Array.from(seriesGroups.entries())
+      .map(([groupName, shows]) => ({
+        groupName,
+        shows: shows.sort((a, b) => b.date.localeCompare(a.date))
+      }))
+      .sort((a, b) => b.shows[0].date.localeCompare(a.shows[0].date));
+  }
+
+  /**
+   * Extract series name by finding year pattern (space + 4 digits)
+   * Everything before the year becomes the series name
+   */
+  private extractSeriesName(performanceName: string): string {
+    // Look for pattern: space + 4 digits (year)
+    const yearMatch = performanceName.match(/\s(\d{4})/);
+    
+    if (yearMatch) {
+      // Found year, return everything before it
+      const yearIndex = performanceName.indexOf(yearMatch[0]);
+      return performanceName.substring(0, yearIndex).trim();
+    }
+    
+    // No year found, treat as individual group
+    return performanceName;
+  }
+
+  /**
    * Get basic statistics
    */
   async getStats(): Promise<{

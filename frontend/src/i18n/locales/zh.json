@@ -3,6 +3,21 @@
     "title": "",
     "subtitle": ""
   },
+  "modes": {
+    "search": "搜索模式",
+    "multiSelect": "多选模式",
+    "switchToSearch": "切换到搜索模式",
+    "switchToMultiSelect": "切换到多选模式"
+  },
+  "multiSelect": {
+    "title": "选择公演",
+    "selectAll": "全选",
+    "deselectAll": "取消全选",
+    "groupSelect": "选择分组",
+    "showCount": "场公演",
+    "selectedCount": "已选择 {{count}} 场公演",
+    "noShows": "暂无公演数据"
+  },
   "search": {
     "placeholder": "搜索公演名称...",
     "noResults": "未找到匹配的公演",
@@ -37,7 +52,8 @@
   "errors": {
     "noShows": "请至少选择一场公演",
     "analysisFailed": "分析失败，请重试",
-    "reverseAnalysisFailed": "反向分析失败，请重试"
+    "reverseAnalysisFailed": "反向分析失败，请重试",
+    "loadShowsFailed": "加载公演数据失败，请重试"
   },
   "common": {
     "loading": "加载中...",
