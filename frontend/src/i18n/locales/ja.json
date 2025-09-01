@@ -1,0 +1,62 @@
+{
+  "app": {
+    "title": "セットリスト分析",
+    "subtitle": "コンサート分析ツール"
+  },
+  "search": {
+    "placeholder": "公演名で検索...",
+    "noResults": "該当する公演が見つかりません",
+    "clear": "クリア",
+    "restored": "前回の選択を復元しました",
+    "clearConfirmTitle": "クリアの確認",
+    "clearConfirmMessage": "選択した全ての公演をクリアしてもよろしいですか？",
+    "clearConfirmButton": "クリアする"
+  },
+  "analysis": {
+    "button": "分析",
+    "loading": "分析中...",
+    "reverse": "逆方向",
+    "resultTitle": "正方向分析結果 - 達成楽曲",
+    "reverseResultTitle": "逆方向分析結果 - MISS楽曲",
+    "completionRate": "達成率",
+    "incompletionRate": "MISS率",
+    "subtitle": "選択した公演で演奏された楽曲を出現回数順で表示",
+    "reverseSubtitle": "選択した公演で一度も演奏されなかった楽曲を過去の選出率順で表示",
+    "completionDescription": "達成楽曲が全楽曲に占める割合",
+    "incompletionDescription": "MISS楽曲が全楽曲に占める割合",
+    "songCount": "曲"
+  },
+  "table": {
+    "songName": "楽曲名",
+    "hitCount": "回数",
+    "totalAppearances": "全公演回数",
+    "selectionRate": "選出率",
+    "latestPerformance": "直前歌唱公演",
+    "latestVenue": "会場"
+  },
+  "errors": {
+    "noShows": "最低1つの公演を選択してください",
+    "analysisFailed": "分析に失敗しました。再試行してください",
+    "reverseAnalysisFailed": "逆方向分析に失敗しました。再試行してください"
+  },
+  "common": {
+    "loading": "読み込み中...",
+    "error": "エラーが発生しました",
+    "retry": "再試行",
+    "back": "戻る",
+    "next": "次へ",
+    "previous": "前へ",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "confirm": "確認",
+    "delete": "削除",
+    "edit": "編集",
+    "view": "表示",
+    "close": "閉じる"
+  },
+  "settings": {
+    "language": "言語",
+    "theme": "テーマ",
+    "darkMode": "ダークモード"
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "app": {
+    "title": "Setlist Analyzer",
+    "subtitle": "Concert Analysis Tool"
+  },
+  "search": {
+    "placeholder": "Search performance name...",
+    "noResults": "No matching performances found",
+    "clear": "Clear",
+    "restored": "Previous selection restored",
+    "clearConfirmTitle": "Confirm Clear",
+    "clearConfirmMessage": "Are you sure you want to clear all selected performances?",
+    "clearConfirmButton": "Confirm Clear"
+  },
+  "analysis": {
+    "button": "Analyze",
+    "loading": "Analyzing...",
+    "reverse": "Reverse",
+    "resultTitle": "Forward Analysis Results - Songs Heard",
+    "reverseResultTitle": "Reverse Analysis Results - Songs Not Heard",
+    "completionRate": "Completion Rate",
+    "incompletionRate": "Incompletion Rate",
+    "subtitle": "Shows songs performed in selected shows, sorted by occurrence count",
+    "reverseSubtitle": "Shows songs that never appeared in selected shows, sorted by historical selection rate",
+    "completionDescription": "Percentage of heard songs out of all songs",
+    "incompletionDescription": "Percentage of unheard songs out of all songs",
+    "songCount": "songs"
+  },
+  "table": {
+    "songName": "Song Name",
+    "hitCount": "Count",
+    "totalAppearances": "Total Appearances",
+    "selectionRate": "Selection Rate",
+    "latestPerformance": "Latest Performance",
+    "latestVenue": "Venue"
+  },
+  "errors": {
+    "noShows": "Please select at least one performance",
+    "analysisFailed": "Analysis failed, please try again",
+    "reverseAnalysisFailed": "Reverse analysis failed, please try again"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "retry": "Retry",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "view": "View",
+    "close": "Close"
+  },
+  "settings": {
+    "language": "Language",
+    "theme": "Theme",
+    "darkMode": "Dark Mode"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "nana-live-accomplishment",
+  "version": "1.0.0",
+  "description": "Nana Mizuki Live ACCOMPLISHMENT - A comprehensive database and frontend for tracking Nana Mizuki's live performances",
+  "main": "index.js",
+  "scripts": {
+    "build": "cd frontend && npm ci && npm run build",
+    "start": "cd frontend && npm start",
+    "install-frontend": "cd frontend && npm install",
+    "test": "cd frontend && npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CheerChen/nana.live.acc.git"
+  },
+  "keywords": [
+    "nana-mizuki",
+    "live-performance",
+    "database",
+    "react",
+    "typescript"
+  ],
+  "author": "CheerChen",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/CheerChen/nana.live.acc/issues"
+  },
+  "homepage": "https://github.com/CheerChen/nana.live.acc#readme",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  }
+}
