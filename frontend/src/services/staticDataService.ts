@@ -84,6 +84,7 @@ class StaticDataService {
   private tours: Tour[] = [];
   private toursMap: Map<string, Tour> = new Map();
   private isLoaded = false;
+  private loadPromise: Promise<void> | null = null;
 
   // Computed indices for performance optimization
   private showsMap: Map<number, LiveShow> = new Map();
@@ -93,40 +94,41 @@ class StaticDataService {
   private songStats: Map<number, SongStats> = new Map();
 
   /**
-   * Load all static data files
+   * Load all static data files. Concurrent callers share the same in-flight
+   * Promise so we never trigger duplicate fetches.
    */
   async loadData(): Promise<void> {
     if (this.isLoaded) return;
+    if (this.loadPromise) return this.loadPromise;
 
-    try {
-      const [showsResponse, songsResponse, performancesResponse, toursResponse] =
-        await Promise.all([
-          fetch('/data/shows.json'),
-          fetch('/data/songs.json'),
-          fetch('/data/performances.json'),
-          fetch('/data/tours.json').catch(() => null),
-        ]);
+    this.loadPromise = (async () => {
+      try {
+        const [showsResponse, songsResponse, performancesResponse, toursResponse] =
+          await Promise.all([
+            fetch('/data/shows.json'),
+            fetch('/data/songs.json'),
+            fetch('/data/performances.json'),
+            fetch('/data/tours.json').catch(() => null),
+          ]);
 
-      this.shows = await showsResponse.json();
-      this.songs = await songsResponse.json();
-      this.performances = await performancesResponse.json();
-      this.tours = toursResponse && toursResponse.ok ? await toursResponse.json() : [];
-      this.toursMap.clear();
-      this.tours.forEach((t) => this.toursMap.set(t.id, t));
+        this.shows = await showsResponse.json();
+        this.songs = await songsResponse.json();
+        this.performances = await performancesResponse.json();
+        this.tours = toursResponse && toursResponse.ok ? await toursResponse.json() : [];
+        this.toursMap.clear();
+        this.tours.forEach((t) => this.toursMap.set(t.id, t));
 
-      // Build performance indices for fast lookup
-      this.buildIndices();
+        this.buildIndices();
+        this.isLoaded = true;
+      } catch (error) {
+        // Allow a retry after failure.
+        this.loadPromise = null;
+        console.error('Failed to load static data:', error);
+        throw error;
+      }
+    })();
 
-      this.isLoaded = true;
-      console.log('Static data loaded successfully:', {
-        shows: this.shows.length,
-        songs: this.songs.length,
-        performances: this.performances.length
-      });
-    } catch (error) {
-      console.error('Failed to load static data:', error);
-      throw error;
-    }
+    return this.loadPromise;
   }
 
   /**
@@ -210,21 +212,6 @@ class StaticDataService {
   }
 
   /**
-   * Search shows by performance name or venue
-   */
-  async searchShows(query: string): Promise<LiveShow[]> {
-    await this.loadData();
-    
-    if (!query.trim()) return [];
-
-    const searchTerm = query.toLowerCase();
-    return this.shows.filter(show => 
-      show.performance_name.toLowerCase().includes(searchTerm) ||
-      show.venue.toLowerCase().includes(searchTerm)
-    ).slice(0, 50); // Limit results for performance
-  }
-
-  /**
    * Analyze songs for selected shows
    */
   async analyzeSongs(showIds: number[]): Promise<{
@@ -235,66 +222,35 @@ class StaticDataService {
   }> {
     await this.loadData();
 
-    // Find songs that appear in selected shows using optimized indices
-    const selectedSongIds = new Set<number>();
-    showIds.forEach(showId => {
-      const songIds = this.performancesByShow.get(showId) || [];
-      songIds.forEach(songId => selectedSongIds.add(songId));
+    // Single pass: walk each selected show once, accumulate hit_count per song.
+    const hitCounts = new Map<number, number>();
+    showIds.forEach((showId) => {
+      const songIds = this.performancesByShow.get(showId);
+      if (!songIds) return;
+      songIds.forEach((songId) => {
+        hitCounts.set(songId, (hitCounts.get(songId) || 0) + 1);
+      });
     });
 
-    // Count appearances in selected shows for each song
-    const songStats = new Map<number, {
-      id: number;
-      name: string;
-      hit_count: number;
-      total_appearances: number;
-      selection_rate: number;
-    }>();
-
-    // Initialize with songs that appear in selected shows
-    selectedSongIds.forEach(songId => {
+    const analysisResults: SongAnalysis[] = [];
+    hitCounts.forEach((hitCount, songId) => {
       const song = this.songsMap.get(songId);
-      if (song) {
-        const stats = this.getSongStats(songId);
-        
-        // Count how many times this song appears in selected shows
-        let hitCount = 0;
-        showIds.forEach(showId => {
-          const songsInShow = this.performancesByShow.get(showId) || [];
-          if (songsInShow.includes(songId)) {
-            hitCount++;
-          }
-        });
-
-        songStats.set(songId, {
-          id: song.id,
-          name: song.name,
-          hit_count: hitCount,
-          total_appearances: stats.total_appearances,
-          selection_rate: stats.selection_rate
-        });
-      }
-    });
-
-    // Convert to analysis format
-    const analysisResults: SongAnalysis[] = Array.from(songStats.values()).map(stat => {
-      const latest = this.getLatestPerformance(stat.id);
-
-      return {
-        id: stat.id,
-        song_name: stat.name,
-        hit_count: stat.hit_count,
-        total_appearances: stat.total_appearances,
-        selection_rate: stat.selection_rate,
+      if (!song) return;
+      const stats = this.getSongStats(songId);
+      const latest = this.getLatestPerformance(songId);
+      analysisResults.push({
+        id: song.id,
+        song_name: song.name,
+        hit_count: hitCount,
+        total_appearances: stats.total_appearances,
+        selection_rate: stats.selection_rate,
         latest_performance: latest.latest_performance,
-        latest_venue: latest.latest_venue
-      };
+        latest_venue: latest.latest_venue,
+      });
     });
 
-    // Sort by hit count descending
     analysisResults.sort((a, b) => b.hit_count - a.hit_count);
 
-    // Calculate completion rate
     const totalUniqueSongs = this.songs.length;
     const heardSongs = analysisResults.length;
     const completionRate = totalUniqueSongs > 0 ? heardSongs / totalUniqueSongs : 0;
@@ -303,7 +259,7 @@ class StaticDataService {
       songs: analysisResults,
       completion_rate: completionRate,
       total_songs: totalUniqueSongs,
-      heard_songs: heardSongs
+      heard_songs: heardSongs,
     };
   }
 

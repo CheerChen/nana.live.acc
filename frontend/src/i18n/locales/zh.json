@@ -19,7 +19,8 @@
     "groupSelect": "选择分组",
     "showCount": "场公演",
     "selectedCount": "场公演已选择",
-    "noShows": "暂无公演数据"
+    "noShows": "暂无公演数据",
+    "noMatches": "没有匹配的公演"
   },
   "search": {
     "placeholder": "搜索公演名称...",
@@ -77,6 +78,27 @@
     "language": "语言",
     "theme": "主题",
     "darkMode": "深色模式"
+  },
+  "labels": {
+    "tourSetlistSection": "── TOUR SETLIST",
+    "core": "CORE",
+    "rotation": "ROTATION",
+    "rare": "RARE",
+    "songCol": "SONG",
+    "hitsFraction": "×/{{n}}",
+    "songSection": "── SONG",
+    "kpiAllTime": "All-time",
+    "kpiRate": "Rate",
+    "kpiLatest": "Latest",
+    "timelineSection": "── TIMELINE",
+    "recentSection": "── RECENT",
+    "moreCount": "+ {{n}} more",
+    "sourceLink": "↗ SOURCE",
+    "showSetlistButton": "SHOW SETLIST",
+    "tourMeta": "{{count}} shows  ·  {{unique}} unique songs"
+  },
+  "tour": {
+    "noSetlist": "暂无该巡演的曲目数据"
   },
   "relative": {
     "today": "今天",

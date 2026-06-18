@@ -45,6 +45,7 @@ const LanguageSwitcher: React.FC = () => {
               type="button"
               onClick={() => i18n.changeLanguage(lang.code)}
               aria-pressed={active}
+              aria-label={`Switch language to ${lang.code.toUpperCase()}`}
               sx={{
                 appearance: 'none',
                 background: 'none',
@@ -57,7 +58,13 @@ const LanguageSwitcher: React.FC = () => {
                 letterSpacing: 'inherit',
                 color: active ? theme.palette.primary.main : 'text.secondary',
                 transition: 'color 120ms ease',
+                outline: 'none',
                 '&:hover': { color: active ? theme.palette.primary.main : 'text.primary' },
+                '&:focus-visible': {
+                  color: theme.palette.primary.main,
+                  textDecoration: 'underline',
+                  textUnderlineOffset: 4,
+                },
               }}
             >
               {lang.label}

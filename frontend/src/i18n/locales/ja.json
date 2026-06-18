@@ -19,7 +19,8 @@
     "groupSelect": "グループ選択",
     "showCount": "公演",
     "selectedCount": "公演を選択中",
-    "noShows": "公演データがありません"
+    "noShows": "公演データがありません",
+    "noMatches": "該当する公演がありません"
   },
   "search": {
     "placeholder": "公演名で検索...",
@@ -77,6 +78,27 @@
     "language": "言語",
     "theme": "テーマ",
     "darkMode": "ダークモード"
+  },
+  "labels": {
+    "tourSetlistSection": "── TOUR SETLIST",
+    "core": "CORE",
+    "rotation": "ROTATION",
+    "rare": "RARE",
+    "songCol": "SONG",
+    "hitsFraction": "×/{{n}}",
+    "songSection": "── SONG",
+    "kpiAllTime": "All-time",
+    "kpiRate": "Rate",
+    "kpiLatest": "Latest",
+    "timelineSection": "── TIMELINE",
+    "recentSection": "── RECENT",
+    "moreCount": "+ {{n}} more",
+    "sourceLink": "↗ SOURCE",
+    "showSetlistButton": "SHOW SETLIST",
+    "tourMeta": "{{count}} shows  ·  {{unique}} unique songs"
+  },
+  "tour": {
+    "noSetlist": "このツアーのセットリストはまだ登録されていません"
   },
   "relative": {
     "today": "今日",

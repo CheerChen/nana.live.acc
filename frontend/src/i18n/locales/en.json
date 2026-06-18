@@ -19,7 +19,8 @@
     "groupSelect": "Group Select",
     "showCount": "performances",
     "selectedCount": "performances selected",
-    "noShows": "No performance data available"
+    "noShows": "No performance data available",
+    "noMatches": "No performances match this search"
   },
   "search": {
     "placeholder": "Search performance name...",
@@ -77,6 +78,27 @@
     "language": "Language",
     "theme": "Theme",
     "darkMode": "Dark Mode"
+  },
+  "labels": {
+    "tourSetlistSection": "── TOUR SETLIST",
+    "core": "CORE",
+    "rotation": "ROTATION",
+    "rare": "RARE",
+    "songCol": "SONG",
+    "hitsFraction": "×/{{n}}",
+    "songSection": "── SONG",
+    "kpiAllTime": "All-time",
+    "kpiRate": "Rate",
+    "kpiLatest": "Latest",
+    "timelineSection": "── TIMELINE",
+    "recentSection": "── RECENT",
+    "moreCount": "+ {{n}} more",
+    "sourceLink": "↗ SOURCE",
+    "showSetlistButton": "SHOW SETLIST",
+    "tourMeta": "{{count}} shows  ·  {{unique}} unique songs"
+  },
+  "tour": {
+    "noSetlist": "No setlist data recorded for this tour yet."
   },
   "relative": {
     "today": "Today",
