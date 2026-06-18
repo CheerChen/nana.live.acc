@@ -41,8 +41,10 @@ import {
   SortKey,
 } from './components/AnalysisPanel';
 
-const TourMatrixDrawer = React.lazy(() => import('./components/TourMatrixDrawer'));
+const RightDrawer = React.lazy(() => import('./components/RightDrawer'));
 const SongDetailModal = React.lazy(() => import('./components/SongDetailModal'));
+
+type RightPanelType = 'setlist' | 'analysis';
 
 const STORAGE_KEY = 'nana-selected-shows';
 const THEME_STORAGE_KEY = 'nana-theme-mode';
@@ -112,7 +114,6 @@ const HomePage: React.FC = () => {
   const [heardAnalysis, setHeardAnalysis] = useState<AnalysisSnapshot | null>(null);
   const [missedAnalysis, setMissedAnalysis] = useState<AnalysisSnapshot | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState<boolean>(false);
-  const [analysisExpanded, setAnalysisExpanded] = useState<boolean>(false);
   const [analysisTab, setAnalysisTab] = useState<AnalysisMode>('heard');
   const [error, setError] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState<boolean>(loadThemeMode);
@@ -126,12 +127,15 @@ const HomePage: React.FC = () => {
   const [sortKey, setSortKey] = useState<SortKey>('hit_count');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
-  const [tourDrawer, setTourDrawer] = useState<{
+  // Unified right-side drawer state. Both "tour setlist" and "analysis" share
+  // the same drawer surface; toggling between them crossfades the body.
+  const [rightPanel, setRightPanel] = useState<{
     open: boolean;
+    type: RightPanelType | null;
     group: ShowGroup | null;
     matrix: TourMatrix | null;
-    loading: boolean;
-  }>({ open: false, group: null, matrix: null, loading: false });
+    matrixLoading: boolean;
+  }>({ open: false, type: null, group: null, matrix: null, matrixLoading: false });
 
   const [songModal, setSongModal] = useState<{
     open: boolean;
@@ -264,18 +268,33 @@ const HomePage: React.FC = () => {
   );
 
   const handleOpenTourMatrix = useCallback(async (group: ShowGroup) => {
-    setTourDrawer({ open: true, group, matrix: null, loading: true });
+    setRightPanel({
+      open: true,
+      type: 'setlist',
+      group,
+      matrix: null,
+      matrixLoading: true,
+    });
     try {
       const matrix = await staticDataService.getTourMatrix(group.shows.map((s) => s.id));
-      setTourDrawer((d) => ({ ...d, matrix, loading: false }));
+      setRightPanel((d) => ({ ...d, matrix, matrixLoading: false }));
     } catch (err) {
       console.error('Failed to load tour matrix:', err);
-      setTourDrawer((d) => ({ ...d, loading: false }));
+      setRightPanel((d) => ({ ...d, matrixLoading: false }));
     }
   }, []);
 
-  const handleCloseTourMatrix = useCallback(() => {
-    setTourDrawer((d) => ({ ...d, open: false }));
+  const handleToggleAnalysis = useCallback(() => {
+    setRightPanel((d) => {
+      if (d.open && d.type === 'analysis') {
+        return { ...d, open: false };
+      }
+      return { ...d, open: true, type: 'analysis' };
+    });
+  }, []);
+
+  const handleCloseRightPanel = useCallback(() => {
+    setRightPanel((d) => ({ ...d, open: false }));
   }, []);
 
   const handleOpenSongModal = useCallback(async (songId: number) => {
@@ -304,10 +323,6 @@ const HomePage: React.FC = () => {
     });
   }, []);
 
-  const handleToggleExpanded = useCallback(() => {
-    setAnalysisExpanded((open) => !open);
-  }, []);
-
   const selectedCount = selectedShowIds.size;
 
   // Debounce localStorage writes so rapid toggles don't spam sync IO.
@@ -332,7 +347,8 @@ const HomePage: React.FC = () => {
       setHeardAnalysis(null);
       setMissedAnalysis(null);
       setAnalysisLoading(false);
-      setAnalysisExpanded(false);
+      // Close the right drawer if it was showing analysis for a now-empty selection.
+      setRightPanel((d) => (d.type === 'analysis' ? { ...d, open: false } : d));
       return;
     }
 
@@ -536,11 +552,7 @@ const HomePage: React.FC = () => {
 
       <Container
         maxWidth="lg"
-        sx={{
-          pb: selectedCount > 0
-            ? { xs: analysisExpanded ? 34 : 14, sm: analysisExpanded ? 40 : 12 }
-            : 0,
-        }}
+        sx={{ pb: selectedCount > 0 ? { xs: 14, sm: 12 } : 0 }}
       >
         <SelectPanel
           groupedShows={groupedShows}
@@ -572,26 +584,29 @@ const HomePage: React.FC = () => {
         heardAnalysis={heardAnalysis}
         missedAnalysis={missedAnalysis}
         analysisLoading={analysisLoading}
-        analysisExpanded={analysisExpanded}
-        onToggleExpanded={handleToggleExpanded}
-        analysisTab={analysisTab}
-        onAnalysisTabChange={setAnalysisTab}
-        sortKey={sortKey}
-        sortDir={sortDir}
-        onToggleSort={handleToggleSort}
-        onOpenSong={handleOpenSongModal}
+        analysisActive={rightPanel.open && rightPanel.type === 'analysis'}
+        onToggleAnalysis={handleToggleAnalysis}
         accent={accent}
         darkMode={darkMode}
       />
 
       <Suspense fallback={null}>
-        {tourDrawer.open && (
-          <TourMatrixDrawer
-            open={tourDrawer.open}
-            group={tourDrawer.group}
-            matrix={tourDrawer.matrix}
-            loading={tourDrawer.loading}
-            onClose={handleCloseTourMatrix}
+        {(rightPanel.open || rightPanel.type !== null) && (
+          <RightDrawer
+            open={rightPanel.open}
+            type={rightPanel.type}
+            onClose={handleCloseRightPanel}
+            group={rightPanel.group}
+            matrix={rightPanel.matrix}
+            matrixLoading={rightPanel.matrixLoading}
+            heardAnalysis={heardAnalysis}
+            missedAnalysis={missedAnalysis}
+            analysisLoading={analysisLoading}
+            analysisTab={analysisTab}
+            onAnalysisTabChange={setAnalysisTab}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onToggleSort={handleToggleSort}
             onOpenSong={handleOpenSongModal}
             accent={accent}
             rareAccent={rareAccent}

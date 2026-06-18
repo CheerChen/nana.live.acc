@@ -77,21 +77,20 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
     return copy;
   }, [activeSongs, sortKey, sortDir]);
 
-  const maxHit = useMemo(
-    () => sortedSongs.reduce((m, s) => Math.max(m, s.hit_count || 0), 0),
+  const ANALYSIS_ROW_LIMIT = 50;
+  const displayedSongs = useMemo(
+    () => sortedSongs.slice(0, ANALYSIS_ROW_LIMIT),
     [sortedSongs],
+  );
+  const truncatedCount = sortedSongs.length - displayedSongs.length;
+
+  const maxHit = useMemo(
+    () => displayedSongs.reduce((m, s) => Math.max(m, s.hit_count || 0), 0),
+    [displayedSongs],
   );
 
   return (
-    <Box
-      sx={{
-        width: '100%',
-        mt: 1.5,
-        borderTop: '1px solid',
-        borderColor: 'divider',
-        pt: 2,
-      }}
-    >
+    <Box sx={{ width: '100%' }}>
       <Box
         sx={{
           pb: 2,
@@ -102,9 +101,6 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
         }}
       >
         <Box>
-          <Typography variant="overline" sx={{ color: 'text.secondary', display: 'block', mb: 0.75 }}>
-            ── {analysisTab === 'heard' ? t('analysis.completionRate') : t('analysis.incompletionRate')}
-          </Typography>
           <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
             <Typography
               sx={{
@@ -193,7 +189,6 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
           sx={{
             borderTop: '1px solid',
             borderColor: 'divider',
-            maxHeight: { xs: '44vh', md: '50vh' },
           }}
         >
           <Table stickyHeader size={isMobile ? 'small' : 'medium'} sx={{ tableLayout: 'fixed' }}>
@@ -257,7 +252,7 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
               </TableRow>
             </TableHead>
             <TableBody>
-              {sortedSongs.map((row, idx) => {
+              {displayedSongs.map((row, idx) => {
                 const rate = Number(row.selection_rate) || 0;
                 const hit = row.hit_count || 0;
                 const barWidth = maxHit > 0 ? (hit / maxHit) * 100 : 0;
@@ -355,6 +350,21 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
               })}
             </TableBody>
           </Table>
+          {truncatedCount > 0 && (
+            <Typography
+              sx={{
+                mt: 1.5,
+                px: 2,
+                pb: 1,
+                fontSize: 11,
+                color: 'text.disabled',
+                letterSpacing: '0.04em',
+                display: 'block',
+              }}
+            >
+              {t('labels.moreCount', { n: truncatedCount })}
+            </Typography>
+          )}
         </TableContainer>
       )}
     </Box>

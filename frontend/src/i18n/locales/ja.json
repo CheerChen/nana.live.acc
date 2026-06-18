@@ -95,7 +95,10 @@
     "moreCount": "+ {{n}} more",
     "sourceLink": "↗ SOURCE",
     "showSetlistButton": "SHOW SETLIST",
-    "tourMeta": "{{count}} shows  ·  {{unique}} unique songs"
+    "tourMeta": "{{count}} shows  ·  {{unique}} unique songs",
+    "analysisSection": "── ANALYSIS",
+    "openDetails": "OPEN DETAILS",
+    "closeDetails": "CLOSE DETAILS"
   },
   "tour": {
     "noSetlist": "このツアーのセットリストはまだ登録されていません"
