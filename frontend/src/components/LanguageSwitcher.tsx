@@ -1,8 +1,6 @@
 import React from 'react';
-import { Box } from '@mui/material';
+import { Box, useTheme } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-
-const MAGENTA = '#E5004F';
 
 const languages = [
   { code: 'ja', label: 'JA' },
@@ -12,6 +10,7 @@ const languages = [
 
 const LanguageSwitcher: React.FC = () => {
   const { i18n } = useTranslation();
+  const theme = useTheme();
   const current = i18n.language?.slice(0, 2) || 'en';
 
   return (
@@ -56,9 +55,9 @@ const LanguageSwitcher: React.FC = () => {
                 fontSize: 'inherit',
                 fontWeight: 'inherit',
                 letterSpacing: 'inherit',
-                color: active ? MAGENTA : 'text.secondary',
+                color: active ? theme.palette.primary.main : 'text.secondary',
                 transition: 'color 120ms ease',
-                '&:hover': { color: active ? MAGENTA : 'text.primary' },
+                '&:hover': { color: active ? theme.palette.primary.main : 'text.primary' },
               }}
             >
               {lang.label}

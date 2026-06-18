@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" fill="#E5004F"/>
-  <!-- Path-based block "N" so the glyph renders without any font dependency -->
+  <!-- Path-based block "7" so the glyph renders without any font dependency -->
   <path
     fill="#FFFFFF"
-    d="M14 12 L24 12 L40 38 L40 12 L50 12 L50 52 L40 52 L24 26 L24 52 L14 52 Z"
+    d="M12 12 L52 12 L52 20 L32 52 L20 52 L39 20 L12 20 Z"
   />
 </svg>

@@ -1,9 +1,10 @@
 {
   "app": {
     "brand": "NANA LIVE ACC.",
-    "title": "NANA MIZUKI LIVE ACCOMPLISHMENT",
-    "subtitle": "水樹奈々 ライブセットリスト達成率分析",
-    "tagline": "Setlist Tracker"
+    "title": "NANA MIZUKI\nLIVE SETLIST\nTRACKER",
+    "subtitle": "水樹奈々 | ライブセットリスト・歌唱回数/分析",
+    "tagline": "supported by CheerChen",
+    "headerTagline": "SETLIST TRACKER"
   },
   "modes": {
     "search": "検索モード",

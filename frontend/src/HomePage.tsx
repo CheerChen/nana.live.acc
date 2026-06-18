@@ -495,7 +495,7 @@ const HomePage: React.FC = () => {
               display: { xs: 'none', sm: 'inline' },
             }}
           >
-            / {t('app.tagline')}
+            / {t('app.headerTagline')}
           </Typography>
         </Box>
 
@@ -550,6 +550,7 @@ const HomePage: React.FC = () => {
               lineHeight: 1.15,
               mb: 3,
               letterSpacing: '-0.01em',
+              whiteSpace: 'pre-line',
             }}
           >
             {t('app.title')}
@@ -705,8 +706,8 @@ const HomePage: React.FC = () => {
     const renderSongRow = (song: NonNullable<TourMatrix['songs']>[number]) => {
       if (!matrix) return null;
       const isCore = song.hitCount === showCount;
-      const isSuperRare = song.hitCount === 1;
-      const diamondColor = isSuperRare ? rareAccent : accent;
+      const isRare = showCount > 2 && song.hitCount === 1;
+      const diamondColor = isRare ? rareAccent : accent;
       return (
         <Box
           key={song.id}
@@ -762,11 +763,7 @@ const HomePage: React.FC = () => {
                   fontSize: 11,
                   py: 1,
                   color: played ? 'text.primary' : 'text.disabled',
-                  backgroundColor: played
-                    ? darkMode
-                      ? 'rgba(229,0,79,0.18)'
-                      : 'rgba(229,0,79,0.10)'
-                    : 'transparent',
+                  backgroundColor: played ? (darkMode ? `${accent}2e` : `${accent}1a`) : 'transparent',
                 }}
               >
                 {played ? String(pos).padStart(2, '0') : '·'}
@@ -801,7 +798,7 @@ const HomePage: React.FC = () => {
                 fontSize: 11,
                 lineHeight: 1,
                 display: 'inline-block',
-                ...(isSuperRare && {
+                ...(isRare && {
                   animation: 'nana-rare-pulse 1.4s ease-in-out infinite',
                 }),
               }}
@@ -948,7 +945,7 @@ const HomePage: React.FC = () => {
                     variant="caption"
                     sx={{ color: 'text.secondary', letterSpacing: '0.16em' }}
                   >
-                    SUPER RARE
+                    RARE
                   </Typography>
                 </Box>
               </Box>
