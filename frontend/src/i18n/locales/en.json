@@ -76,5 +76,14 @@
     "language": "Language",
     "theme": "Theme",
     "darkMode": "Dark Mode"
+  },
+  "relative": {
+    "today": "Today",
+    "daysAgo": "{{n}} days ago",
+    "weeksAgo": "{{n}} weeks ago",
+    "monthsAgo": "{{n}} months ago",
+    "yearsAgo": "{{n}} years ago",
+    "yearsMonthsAgo": "{{y}}y {{m}}mo ago",
+    "future": "Future"
   }
 }

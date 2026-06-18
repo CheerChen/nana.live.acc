@@ -15,6 +15,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  Drawer,
   IconButton,
   Tooltip,
   Table,
@@ -37,9 +38,17 @@ import {
   ClearAll as ClearAllIcon,
   SearchOff as SearchOffIcon,
   Check as CheckIcon,
+  Close as CloseIcon,
+  GridView as GridViewIcon,
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
-import { staticDataService, LiveShow, SongAnalysis } from './services/staticDataService';
+import {
+  staticDataService,
+  LiveShow,
+  SongAnalysis,
+  TourMatrix,
+  SongDetail,
+} from './services/staticDataService';
 import LanguageSwitcher from './components/LanguageSwitcher';
 
 interface ShowGroup {
@@ -54,7 +63,16 @@ const STORAGE_KEY = 'nana-selected-shows';
 const THEME_STORAGE_KEY = 'nana-theme-mode';
 const EXPIRY_DAYS = 7;
 
+// Brand magenta — primary accent in dark mode, "super rare" accent in light mode.
 const MAGENTA = '#E5004F';
+const MAGENTA_HOVER = '#F2336F';
+const MAGENTA_ACTIVE = '#B8003F';
+// Light-mode primary blue (user-supplied).
+const BLUE = '#306eff';
+const BLUE_HOVER = '#4a80ff';
+const BLUE_ACTIVE = '#175cff';
+// Sky cyan used for "super rare" marker in dark mode (kept distinct from magenta).
+const SKY_BLUE = '#1FA9FF';
 
 const saveSelectedShowIds = (ids: number[]) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ids, timestamp: Date.now() }));
@@ -106,7 +124,29 @@ const saveThemeMode = (dark: boolean) => {
 };
 
 const formatDate = (iso: string) => iso.replace(/-/g, '.');
-const yearOf = (iso: string) => iso.slice(0, 4);
+
+type Translator = (key: string, opts?: Record<string, unknown>) => string;
+
+/** Locale-aware relative-time text for the latest performance. */
+const formatElapsed = (iso: string, t: Translator, now: Date = new Date()): string => {
+  const then = new Date(iso + 'T00:00:00');
+  if (Number.isNaN(then.getTime())) return '—';
+  const days = Math.floor((now.getTime() - then.getTime()) / 86_400_000);
+  if (days < 0) return t('relative.future');
+  if (days === 0) return t('relative.today');
+  if (days < 14) return t('relative.daysAgo', { n: days });
+  if (days < 60) return t('relative.weeksAgo', { n: Math.floor(days / 7) });
+  let y = now.getFullYear() - then.getFullYear();
+  let m = now.getMonth() - then.getMonth();
+  if (now.getDate() < then.getDate()) m -= 1;
+  if (m < 0) {
+    y -= 1;
+    m += 12;
+  }
+  if (y === 0) return t('relative.monthsAgo', { n: m });
+  if (m === 0) return t('relative.yearsAgo', { n: y });
+  return t('relative.yearsMonthsAgo', { y, m });
+};
 
 const HomePage: React.FC = () => {
   const { t } = useTranslation();
@@ -132,7 +172,29 @@ const HomePage: React.FC = () => {
   const [sortKey, setSortKey] = useState<SortKey>('hit_count');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
+  const [tourDrawer, setTourDrawer] = useState<{
+    open: boolean;
+    group: ShowGroup | null;
+    matrix: TourMatrix | null;
+    loading: boolean;
+  }>({ open: false, group: null, matrix: null, loading: false });
+
+  const [songModal, setSongModal] = useState<{
+    open: boolean;
+    detail: SongDetail | null;
+    loading: boolean;
+  }>({ open: false, detail: null, loading: false });
+
   const resultRef = useRef<HTMLDivElement | null>(null);
+
+  // Theme-aware accent colors. Magenta stays as the brand mark in dark mode;
+  // light mode swaps to indigo blue so the UI feels different from a
+  // dark-mode screenshot at first glance. The "super rare" marker uses the
+  // opposite of the primary so it always stands out in either mode.
+  const accent = darkMode ? MAGENTA : BLUE;
+  const accentHover = darkMode ? MAGENTA_HOVER : BLUE_HOVER;
+  const accentActive = darkMode ? MAGENTA_ACTIVE : BLUE_ACTIVE;
+  const rareAccent = darkMode ? SKY_BLUE : MAGENTA;
 
   useEffect(() => {
     const { ids, isRestored } = loadSelectedShowIds();
@@ -164,7 +226,12 @@ const HomePage: React.FC = () => {
       createTheme({
         palette: {
           mode: darkMode ? 'dark' : 'light',
-          primary: { main: MAGENTA, contrastText: '#FFFFFF' },
+          primary: {
+            main: accent,
+            light: accentHover,
+            dark: accentActive,
+            contrastText: '#FFFFFF',
+          },
           secondary: { main: darkMode ? '#F5F5F5' : '#111111' },
           background: {
             default: darkMode ? '#0E0E10' : '#FAFAFA',
@@ -214,7 +281,7 @@ const HomePage: React.FC = () => {
           },
         },
       }),
-    [darkMode],
+    [darkMode, accent, accentHover, accentActive],
   );
 
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -233,6 +300,36 @@ const HomePage: React.FC = () => {
       else newSelected.delete(show.id);
     });
     setSelectedShowIds(newSelected);
+  };
+
+  const handleOpenTourMatrix = async (group: ShowGroup) => {
+    setTourDrawer({ open: true, group, matrix: null, loading: true });
+    try {
+      const matrix = await staticDataService.getTourMatrix(group.shows.map((s) => s.id));
+      setTourDrawer((d) => ({ ...d, matrix, loading: false }));
+    } catch (err) {
+      console.error('Failed to load tour matrix:', err);
+      setTourDrawer((d) => ({ ...d, loading: false }));
+    }
+  };
+
+  const handleCloseTourMatrix = () => {
+    setTourDrawer((d) => ({ ...d, open: false }));
+  };
+
+  const handleOpenSongModal = async (songId: number) => {
+    setSongModal({ open: true, detail: null, loading: true });
+    try {
+      const detail = await staticDataService.getSongDetail(songId);
+      setSongModal({ open: true, detail, loading: false });
+    } catch (err) {
+      console.error('Failed to load song detail:', err);
+      setSongModal({ open: false, detail: null, loading: false });
+    }
+  };
+
+  const handleCloseSongModal = () => {
+    setSongModal((m) => ({ ...m, open: false }));
   };
 
   const handleSelectAll = (selectAll: boolean) => {
@@ -345,8 +442,12 @@ const HomePage: React.FC = () => {
           WebkitFontSmoothing: 'antialiased',
         },
         '::selection': {
-          backgroundColor: MAGENTA,
+          backgroundColor: accent,
           color: '#fff',
+        },
+        '@keyframes nana-rare-pulse': {
+          '0%, 100%': { opacity: 1, transform: 'scale(1)' },
+          '50%': { opacity: 0.35, transform: 'scale(0.85)' },
         },
       }}
     />
@@ -371,7 +472,7 @@ const HomePage: React.FC = () => {
               width: 6,
               height: 6,
               borderRadius: 0,
-              backgroundColor: MAGENTA,
+              backgroundColor: accent,
               alignSelf: 'center',
               display: 'inline-block',
             }}
@@ -433,7 +534,7 @@ const HomePage: React.FC = () => {
           <Typography
             variant="overline"
             sx={{
-              color: MAGENTA,
+              color: accent,
               display: 'block',
               mb: 2,
             }}
@@ -474,7 +575,7 @@ const HomePage: React.FC = () => {
           top: 0,
           bottom: 0,
           width: 360,
-          background: `linear-gradient(135deg, ${MAGENTA}11, transparent 60%)`,
+          background: `linear-gradient(135deg, ${accent}11, transparent 60%)`,
           pointerEvents: 'none',
           display: { xs: 'none', md: 'block' },
         }}
@@ -523,7 +624,7 @@ const HomePage: React.FC = () => {
                 fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
                 fontSize: { xs: 22, sm: 28 },
                 fontWeight: 600,
-                color: MAGENTA,
+                color: accent,
                 fontFeatureSettings: '"tnum"',
                 lineHeight: 1,
               }}
@@ -566,7 +667,7 @@ const HomePage: React.FC = () => {
             sx={{
               borderColor: 'divider',
               color: 'text.primary',
-              '&:hover': { borderColor: MAGENTA, color: MAGENTA },
+              '&:hover': { borderColor: accent, color: accent },
             }}
           >
             {loading && isReverseAnalysis ? t('analysis.loading') : t('analysis.reverse')}
@@ -591,6 +692,572 @@ const HomePage: React.FC = () => {
     );
   };
 
+  // ── render: tour matrix drawer ────────────────────────────────
+  const renderTourMatrixDrawer = () => {
+    const { open, group, matrix, loading: matrixLoading } = tourDrawer;
+
+    const showCount = matrix?.shows.length ?? 0;
+    const colCellWidth = showCount > 15 ? 34 : 42;
+    const gridTemplate = `minmax(180px, 240px) repeat(${showCount}, ${colCellWidth}px) 64px`;
+
+    const renderShortDate = (iso: string) => iso.slice(5).replace('-', '.');
+
+    const renderSongRow = (song: NonNullable<TourMatrix['songs']>[number]) => {
+      if (!matrix) return null;
+      const isCore = song.hitCount === showCount;
+      const isSuperRare = song.hitCount === 1;
+      const diamondColor = isSuperRare ? rareAccent : accent;
+      return (
+        <Box
+          key={song.id}
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: gridTemplate,
+            alignItems: 'center',
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            minHeight: 36,
+            '&:hover': {
+              backgroundColor: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+            },
+          }}
+        >
+          <Typography
+            component="button"
+            type="button"
+            onClick={() => handleOpenSongModal(song.id)}
+            sx={{
+              appearance: 'none',
+              background: 'none',
+              border: 'none',
+              p: 0,
+              textAlign: 'left',
+              cursor: 'pointer',
+              font: 'inherit',
+              fontSize: 13,
+              fontWeight: 500,
+              pr: 1.5,
+              pl: 0.5,
+              color: 'text.primary',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              transition: 'color 120ms ease',
+              '&:hover': { color: accent },
+            }}
+            title={song.name}
+          >
+            {song.name}
+          </Typography>
+          {matrix.shows.map((show) => {
+            const pos = song.cells[show.id];
+            const played = pos !== undefined;
+            return (
+              <Box
+                key={show.id}
+                sx={{
+                  textAlign: 'center',
+                  fontFamily: 'Inter, monospace',
+                  fontFeatureSettings: '"tnum"',
+                  fontSize: 11,
+                  py: 1,
+                  color: played ? 'text.primary' : 'text.disabled',
+                  backgroundColor: played
+                    ? darkMode
+                      ? 'rgba(229,0,79,0.18)'
+                      : 'rgba(229,0,79,0.10)'
+                    : 'transparent',
+                }}
+              >
+                {played ? String(pos).padStart(2, '0') : '·'}
+              </Box>
+            );
+          })}
+          <Box
+            sx={{
+              textAlign: 'right',
+              pr: 0.5,
+              pl: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: 0.5,
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{
+                fontFeatureSettings: '"tnum"',
+                fontWeight: 600,
+                color: isCore ? 'text.secondary' : 'text.primary',
+              }}
+            >
+              {song.hitCount}/{showCount}
+            </Typography>
+            <Box
+              component="span"
+              sx={{
+                color: isCore ? 'text.disabled' : diamondColor,
+                fontSize: 11,
+                lineHeight: 1,
+                display: 'inline-block',
+                ...(isSuperRare && {
+                  animation: 'nana-rare-pulse 1.4s ease-in-out infinite',
+                }),
+              }}
+              aria-hidden
+            >
+              ◆
+            </Box>
+          </Box>
+        </Box>
+      );
+    };
+
+    return (
+      <Drawer
+        anchor="right"
+        open={open}
+        onClose={handleCloseTourMatrix}
+        PaperProps={{
+          sx: {
+            width: { xs: '100%', md: 920, lg: 1040 },
+            backgroundColor: 'background.default',
+            backgroundImage: 'none',
+            borderLeft: '1px solid',
+            borderColor: 'divider',
+          },
+        }}
+      >
+        <Box
+          sx={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 1,
+            backdropFilter: 'saturate(180%) blur(12px)',
+            backgroundColor: darkMode ? 'rgba(14,14,16,0.88)' : 'rgba(255,255,255,0.88)',
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            px: { xs: 2, md: 4 },
+            py: 2,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+          }}
+        >
+          <Typography
+            variant="overline"
+            sx={{ color: 'text.secondary', letterSpacing: '0.22em', flexGrow: 1 }}
+          >
+            ── TOUR SETLIST
+          </Typography>
+          <IconButton onClick={handleCloseTourMatrix} size="small">
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Box>
+
+        <Box sx={{ px: { xs: 2, md: 4 }, py: { xs: 3, md: 5 } }}>
+          {group && (
+            <Box sx={{ mb: 4 }}>
+              <Typography
+                sx={{
+                  fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+                  fontSize: { xs: 24, md: 34 },
+                  fontWeight: 600,
+                  lineHeight: 1.2,
+                  mb: 1.5,
+                }}
+              >
+                {group.groupName}
+              </Typography>
+              {matrix && matrix.shows.length > 0 && (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ fontFeatureSettings: '"tnum"' }}
+                >
+                  {formatDate(matrix.shows[0].date)} — {formatDate(matrix.shows[matrix.shows.length - 1].date)}
+                  {'  ·  '}{matrix.shows.length} shows
+                  {'  ·  '}{matrix.songs.length} unique songs
+                </Typography>
+              )}
+            </Box>
+          )}
+
+          {matrixLoading && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+              <CircularProgress sx={{ color: accent }} />
+            </Box>
+          )}
+
+          {!matrixLoading && matrix && matrix.songs.length === 0 && (
+            <Alert severity="info" sx={{ borderRadius: 0 }}>
+              No setlist data recorded for this tour yet.
+            </Alert>
+          )}
+
+          {!matrixLoading && matrix && matrix.songs.length > 0 && (
+            <>
+              {/* legend */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  flexWrap: 'wrap',
+                  pb: 2,
+                  mb: 2,
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                  <Box component="span" sx={{ color: 'text.disabled', fontSize: 12, lineHeight: 1 }}>
+                    ◆
+                  </Box>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'text.secondary', letterSpacing: '0.16em' }}
+                  >
+                    CORE
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                  <Box component="span" sx={{ color: accent, fontSize: 12, lineHeight: 1 }}>
+                    ◆
+                  </Box>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'text.secondary', letterSpacing: '0.16em' }}
+                  >
+                    ROTATION
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                  <Box
+                    component="span"
+                    sx={{
+                      color: rareAccent,
+                      fontSize: 12,
+                      lineHeight: 1,
+                      display: 'inline-block',
+                      animation: 'nana-rare-pulse 1.4s ease-in-out infinite',
+                    }}
+                  >
+                    ◆
+                  </Box>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'text.secondary', letterSpacing: '0.16em' }}
+                  >
+                    SUPER RARE
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ overflowX: 'auto' }}>
+                <Box sx={{ display: 'inline-block', minWidth: '100%' }}>
+                  {/* table header */}
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: gridTemplate,
+                    alignItems: 'end',
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
+                    pb: 1,
+                  }}
+                >
+                  <Typography variant="overline" sx={{ color: 'text.secondary', pl: 0.5 }}>
+                    SONG
+                  </Typography>
+                  {matrix.shows.map((show) => (
+                    <Tooltip
+                      key={show.id}
+                      title={`${formatDate(show.date)} · ${show.venue}`}
+                      placement="top"
+                    >
+                      <Typography
+                        sx={{
+                          textAlign: 'center',
+                          color: 'text.secondary',
+                          fontFeatureSettings: '"tnum"',
+                          fontSize: 10,
+                          letterSpacing: 0,
+                          cursor: 'default',
+                          userSelect: 'none',
+                        }}
+                      >
+                        {renderShortDate(show.date)}
+                      </Typography>
+                    </Tooltip>
+                  ))}
+                  <Typography
+                    variant="overline"
+                    sx={{ color: 'text.secondary', textAlign: 'right', pr: 0.5 }}
+                  >
+                    ×/{showCount}
+                  </Typography>
+                </Box>
+
+                  {matrix.songs.map((s) => renderSongRow(s))}
+                </Box>
+              </Box>
+            </>
+          )}
+        </Box>
+      </Drawer>
+    );
+  };
+
+  // ── render: song detail modal ─────────────────────────────────
+  const renderSongModal = () => {
+    const { open, detail, loading: songLoading } = songModal;
+    const maxYearCount = detail
+      ? detail.timeline.reduce((m, x) => Math.max(m, x.count), 0)
+      : 0;
+
+    return (
+      <Dialog
+        open={open}
+        onClose={handleCloseSongModal}
+        maxWidth="sm"
+        fullWidth
+        fullScreen={isMobile}
+        PaperProps={{
+          sx: {
+            borderRadius: 0,
+            backgroundImage: 'none',
+            border: { xs: 'none', sm: '1px solid' },
+            borderColor: 'divider',
+          },
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            px: { xs: 2.5, sm: 3 },
+            py: 2,
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+          }}
+        >
+          <Typography
+            variant="overline"
+            sx={{ color: 'text.secondary', letterSpacing: '0.22em', flexGrow: 1 }}
+          >
+            ── SONG
+          </Typography>
+          <IconButton size="small" onClick={handleCloseSongModal}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Box>
+
+        {songLoading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+            <CircularProgress sx={{ color: accent }} />
+          </Box>
+        )}
+
+        {!songLoading && detail && (
+          <Box sx={{ px: { xs: 2.5, sm: 3 }, py: { xs: 3, sm: 4 } }}>
+            {/* Hero */}
+            <Typography
+              sx={{
+                fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+                fontSize: { xs: 24, sm: 30 },
+                fontWeight: 600,
+                lineHeight: 1.25,
+                mb: { xs: 3, sm: 4 },
+                wordBreak: 'break-word',
+              }}
+            >
+              {detail.song.name}
+            </Typography>
+
+            {/* KPI grid */}
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: { xs: 2, sm: 1.5 },
+                pb: 3,
+                mb: 4,
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+              }}
+            >
+              {[
+                { label: 'All-time', value: String(detail.all_time_plays) },
+                { label: 'Rate', value: `${(detail.play_rate * 100).toFixed(1)}%` },
+                {
+                  label: 'Latest',
+                  value: detail.latest_show ? formatElapsed(detail.latest_show.date, t) : '—',
+                },
+              ].map((kpi) => (
+                <Box key={kpi.label}>
+                  <Typography
+                    variant="overline"
+                    sx={{ color: 'text.secondary', letterSpacing: '0.16em', fontSize: 10 }}
+                  >
+                    {kpi.label}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+                      fontSize: { xs: 20, sm: 26 },
+                      fontWeight: 600,
+                      lineHeight: 1.1,
+                      fontFeatureSettings: '"tnum"',
+                      mt: 0.25,
+                      wordBreak: 'keep-all',
+                    }}
+                  >
+                    {kpi.value}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+
+            {/* Timeline */}
+            {detail.timeline.length > 0 && (
+              <Box sx={{ mb: 4 }}>
+                <Typography
+                  variant="overline"
+                  sx={{ color: 'text.secondary', letterSpacing: '0.22em', display: 'block', mb: 1.5 }}
+                >
+                  ── TIMELINE
+                </Typography>
+                <Box>
+                  {detail.timeline.map(({ year, count }) => (
+                    <Box
+                      key={year}
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: '52px 1fr 32px',
+                        alignItems: 'center',
+                        gap: 1,
+                        py: 0.5,
+                      }}
+                    >
+                      <Typography
+                        sx={{
+                          fontSize: 11,
+                          color: 'text.secondary',
+                          fontFeatureSettings: '"tnum"',
+                          letterSpacing: '0.04em',
+                        }}
+                      >
+                        {year}
+                      </Typography>
+                      <Box
+                        sx={{
+                          height: 6,
+                          width: `${maxYearCount > 0 ? (count / maxYearCount) * 100 : 0}%`,
+                          backgroundColor: accent,
+                          opacity: 0.8,
+                        }}
+                      />
+                      <Typography
+                        sx={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          fontFeatureSettings: '"tnum"',
+                          textAlign: 'right',
+                        }}
+                      >
+                        {count}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            )}
+
+            {/* Recent appearances */}
+            {detail.recent_appearances.length > 0 && (
+              <Box>
+                <Typography
+                  variant="overline"
+                  sx={{ color: 'text.secondary', letterSpacing: '0.22em', display: 'block', mb: 1.5 }}
+                >
+                  ── RECENT
+                </Typography>
+                {detail.recent_appearances.map((show) => (
+                  <Box
+                    key={show.id}
+                    sx={{
+                      display: 'flex',
+                      gap: 2,
+                      alignItems: 'baseline',
+                      py: 1.25,
+                      borderBottom: '1px solid',
+                      borderColor: 'divider',
+                      '&:last-of-type': { borderBottom: 'none' },
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: 11,
+                        fontFeatureSettings: '"tnum"',
+                        color: 'text.secondary',
+                        whiteSpace: 'nowrap',
+                        minWidth: 76,
+                      }}
+                    >
+                      {formatDate(show.date)}
+                    </Typography>
+                    <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+                      <Typography sx={{ fontSize: 13, fontWeight: 500 }} noWrap>
+                        {show.performance_name}
+                      </Typography>
+                      <Typography sx={{ fontSize: 11, color: 'text.secondary' }} noWrap>
+                        {show.venue}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))}
+                {detail.all_time_plays > detail.recent_appearances.length && (
+                  <Typography
+                    sx={{
+                      mt: 1.5,
+                      fontSize: 11,
+                      color: 'text.disabled',
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    + {detail.all_time_plays - detail.recent_appearances.length} more
+                  </Typography>
+                )}
+              </Box>
+            )}
+
+            {/* External link */}
+            {detail.song.song_url && (
+              <Box sx={{ mt: 4, pt: 3, borderTop: '1px solid', borderColor: 'divider' }}>
+                <Box
+                  component="a"
+                  href={detail.song.song_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{
+                    fontSize: 11,
+                    color: accent,
+                    letterSpacing: '0.18em',
+                    fontWeight: 600,
+                    textDecoration: 'none',
+                    '&:hover': { textDecoration: 'underline' },
+                  }}
+                >
+                  ↗ SOURCE
+                </Box>
+              </Box>
+            )}
+          </Box>
+        )}
+      </Dialog>
+    );
+  };
+
   // ── render: show card ─────────────────────────────────────────
   const renderShowCard = (show: LiveShow) => {
     const selected = selectedShowIds.has(show.id);
@@ -603,11 +1270,11 @@ const HomePage: React.FC = () => {
           p: 2.5,
           cursor: 'pointer',
           border: '1px solid',
-          borderColor: selected ? MAGENTA : 'divider',
+          borderColor: selected ? accent : 'divider',
           backgroundColor: 'background.paper',
           transition: 'border-color 140ms ease, transform 140ms ease',
           '&:hover': {
-            borderColor: selected ? MAGENTA : 'text.primary',
+            borderColor: selected ? accent : 'text.primary',
             transform: 'translateY(-1px)',
           },
         }}
@@ -621,7 +1288,7 @@ const HomePage: React.FC = () => {
               width: 20,
               height: 20,
               borderRadius: '50%',
-              backgroundColor: MAGENTA,
+              backgroundColor: accent,
               color: '#fff',
               display: 'flex',
               alignItems: 'center',
@@ -643,18 +1310,6 @@ const HomePage: React.FC = () => {
             }}
           >
             {formatDate(show.date)}
-          </Typography>
-          <Box sx={{ flexGrow: 1 }} />
-          <Typography
-            variant="caption"
-            sx={{
-              color: MAGENTA,
-              fontWeight: 600,
-              letterSpacing: '0.14em',
-              fontSize: 10,
-            }}
-          >
-            {yearOf(show.date)}
           </Typography>
         </Box>
         <Typography
@@ -748,7 +1403,7 @@ const HomePage: React.FC = () => {
 
       {multiSelectLoading && (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-          <CircularProgress sx={{ color: MAGENTA }} />
+          <CircularProgress sx={{ color: accent }} />
         </Box>
       )}
 
@@ -775,18 +1430,54 @@ const HomePage: React.FC = () => {
                   borderColor: 'divider',
                 }}
               >
-                <Typography
+                <Box
                   sx={{
-                    fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
-                    fontSize: 18,
-                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
                     flexGrow: 1,
                     minWidth: 0,
                   }}
-                  noWrap
                 >
-                  {group.groupName}
-                </Typography>
+                  <Typography
+                    sx={{
+                      fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+                      fontSize: 18,
+                      fontWeight: 600,
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {group.groupName}
+                  </Typography>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => handleOpenTourMatrix(group)}
+                    startIcon={<GridViewIcon sx={{ fontSize: 14 }} />}
+                    sx={{
+                      flexShrink: 0,
+                      color: accent,
+                      borderColor: accent,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      letterSpacing: '0.16em',
+                      px: 1.25,
+                      py: 0.25,
+                      minWidth: 0,
+                      '&:hover': {
+                        borderColor: accent,
+                        backgroundColor: darkMode
+                          ? 'rgba(229,0,79,0.14)'
+                          : 'rgba(229,0,79,0.08)',
+                      },
+                    }}
+                  >
+                    SHOW SETLIST
+                  </Button>
+                </Box>
                 <Typography
                   variant="caption"
                   sx={{
@@ -803,7 +1494,7 @@ const HomePage: React.FC = () => {
                   variant="text"
                   onClick={() => handleGroupSelect(group, !allSelected)}
                   sx={{
-                    color: allSelected ? MAGENTA : 'text.secondary',
+                    color: allSelected ? accent : 'text.secondary',
                     fontSize: 11,
                     letterSpacing: '0.06em',
                     minWidth: 0,
@@ -861,14 +1552,14 @@ const HomePage: React.FC = () => {
                   fontSize: { xs: 56, md: 88 },
                   fontWeight: 600,
                   lineHeight: 1,
-                  color: MAGENTA,
+                  color: accent,
                   fontFeatureSettings: '"tnum"',
                   letterSpacing: '-0.02em',
                 }}
               >
                 {(completionRate * 100).toFixed(1)}
               </Typography>
-              <Typography sx={{ fontSize: 28, color: MAGENTA, fontWeight: 500 }}>%</Typography>
+              <Typography sx={{ fontSize: 28, color: accent, fontWeight: 500 }}>%</Typography>
             </Box>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
               {isReverseAnalysis ? t('analysis.incompletionDescription') : t('analysis.completionDescription')}
@@ -965,19 +1656,27 @@ const HomePage: React.FC = () => {
                 return (
                   <TableRow
                     key={row.id}
+                    hover
+                    onClick={() => handleOpenSongModal(row.id)}
                     sx={{
+                      cursor: 'pointer',
                       '& td': { border: 0, borderBottom: '1px solid', borderColor: 'divider', py: 1.5 },
                       transition: 'background 120ms ease',
                       '&:hover': {
                         backgroundColor: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
                       },
+                      '&:hover .song-name': { color: accent },
                     }}
                   >
                     <TableCell sx={{ color: 'text.secondary', fontFeatureSettings: '"tnum"' }}>
                       {String(idx + 1).padStart(2, '0')}
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      <Typography
+                        variant="body2"
+                        className="song-name"
+                        sx={{ fontWeight: 500, transition: 'color 120ms ease' }}
+                      >
                         {row.song_name}
                       </Typography>
                       <Typography
@@ -1005,7 +1704,7 @@ const HomePage: React.FC = () => {
                               position: 'absolute',
                               inset: 0,
                               width: `${barWidth}%`,
-                              backgroundColor: MAGENTA,
+                              backgroundColor: accent,
                             }}
                           />
                         </Box>
@@ -1081,6 +1780,8 @@ const HomePage: React.FC = () => {
       </Container>
 
       {renderFloatingActionBar()}
+      {renderTourMatrixDrawer()}
+      {renderSongModal()}
 
       <Snackbar
         open={showRestoredMessage}

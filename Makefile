@@ -136,6 +136,14 @@ import-vision:
 	$(PYTHON) scripts/import_vision_sheet.py
 	@echo "Vision import completed"
 
+# Seed/refresh shows.json#tour_id and tours.json from a regex best-effort.
+# Idempotent: never overwrites an existing tour_id, so hand-edits stick.
+.PHONY: assign-tours
+assign-tours:
+	@echo "Assigning tour_id to shows + rebuilding tours.json..."
+	$(PYTHON) scripts/assign_tour_names.py
+	@echo "Tour assignment completed"
+
 # Complete development environment setup
 .PHONY: dev-setup
 dev-setup: setup frontend-install

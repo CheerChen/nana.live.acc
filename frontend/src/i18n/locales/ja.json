@@ -76,5 +76,14 @@
     "language": "言語",
     "theme": "テーマ",
     "darkMode": "ダークモード"
+  },
+  "relative": {
+    "today": "今日",
+    "daysAgo": "{{n}}日前",
+    "weeksAgo": "{{n}}週間前",
+    "monthsAgo": "{{n}}ヶ月前",
+    "yearsAgo": "{{n}}年前",
+    "yearsMonthsAgo": "{{y}}年{{m}}ヶ月前",
+    "future": "将来"
   }
 }

@@ -37,6 +37,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "frontend" / "public" / "data"
 
 TOUR_NAME = "NANA MIZUKI LIVE VISION 2025-2026"
+TOUR_ID = "nana-mizuki-live-vision-2025-2026"
 
 # Order MUST match the Sheet's 公演01..公演15 column order (CSV columns 8..22).
 # If new shows are added to the Sheet (KR / TW), append entries here with
@@ -162,6 +163,7 @@ def main() -> int:
                 "performance_name": performance_name,
                 "venue": meta["venue"],
                 "url": None,
+                "tour_id": TOUR_ID,
             }
         )
         show_key_to_id[key] = next_show_id
