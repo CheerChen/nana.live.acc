@@ -4,9 +4,7 @@ import {
   Box,
   TextField,
   Button,
-  Chip,
   Typography,
-  Autocomplete,
   CircularProgress,
   Alert,
   AppBar,
@@ -34,7 +32,6 @@ import {
 } from '@mui/material';
 import {
   Search as SearchIcon,
-  Close as CloseIcon,
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
   ClearAll as ClearAllIcon,
@@ -45,65 +42,56 @@ import { useTranslation } from 'react-i18next';
 import { staticDataService, LiveShow, SongAnalysis } from './services/staticDataService';
 import LanguageSwitcher from './components/LanguageSwitcher';
 
-interface SearchTag {
-  id: number;
-  label: string;
-}
-
-interface SavedShows {
-  shows: SearchTag[];
-  timestamp: number;
-}
-
 interface ShowGroup {
   groupName: string;
   shows: LiveShow[];
 }
 
-type AppMode = 'search' | 'multiSelect';
 type SortKey = 'hit_count' | 'total_appearances' | 'selection_rate' | 'song_name';
 type SortDir = 'asc' | 'desc';
 
 const STORAGE_KEY = 'nana-selected-shows';
-const MODE_STORAGE_KEY = 'nana-app-mode';
 const THEME_STORAGE_KEY = 'nana-theme-mode';
 const EXPIRY_DAYS = 7;
 
 const MAGENTA = '#E5004F';
 
-const saveSelectedShows = (shows: SearchTag[]) => {
-  const data: SavedShows = { shows, timestamp: Date.now() };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+const saveSelectedShowIds = (ids: number[]) => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ids, timestamp: Date.now() }));
 };
 
-const loadSelectedShows = (): { shows: SearchTag[]; isRestored: boolean } => {
+const loadSelectedShowIds = (): { ids: number[]; isRestored: boolean } => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) return { shows: [], isRestored: false };
+    if (!saved) return { ids: [], isRestored: false };
 
-    const data: SavedShows = JSON.parse(saved);
-    const isExpired = Date.now() - data.timestamp > EXPIRY_DAYS * 24 * 60 * 60 * 1000;
-
+    const data: any = JSON.parse(saved);
+    const isExpired = Date.now() - (data.timestamp ?? 0) > EXPIRY_DAYS * 24 * 60 * 60 * 1000;
     if (isExpired) {
       localStorage.removeItem(STORAGE_KEY);
-      return { shows: [], isRestored: false };
+      return { ids: [], isRestored: false };
     }
 
-    return { shows: data.shows, isRestored: data.shows.length > 0 };
+    // New format
+    if (Array.isArray(data.ids)) {
+      const ids = data.ids.filter((n: unknown): n is number => typeof n === 'number');
+      return { ids, isRestored: ids.length > 0 };
+    }
+    // Legacy format: { shows: [{id, label}], timestamp }
+    if (Array.isArray(data.shows)) {
+      const ids = data.shows
+        .map((s: any) => s?.id)
+        .filter((n: unknown): n is number => typeof n === 'number');
+      return { ids, isRestored: ids.length > 0 };
+    }
+    return { ids: [], isRestored: false };
   } catch (error) {
     console.error('Failed to load saved shows:', error);
-    return { shows: [], isRestored: false };
+    return { ids: [], isRestored: false };
   }
 };
 
 const clearSavedShows = () => localStorage.removeItem(STORAGE_KEY);
-
-const saveAppMode = (mode: AppMode) => localStorage.setItem(MODE_STORAGE_KEY, mode);
-
-const loadAppMode = (): AppMode => {
-  const saved = localStorage.getItem(MODE_STORAGE_KEY);
-  return saved === 'multiSelect' ? 'multiSelect' : 'search';
-};
 
 const loadThemeMode = (): boolean => {
   const saved = localStorage.getItem(THEME_STORAGE_KEY);
@@ -123,19 +111,12 @@ const yearOf = (iso: string) => iso.slice(0, 4);
 const HomePage: React.FC = () => {
   const { t } = useTranslation();
 
-  const [availableShows, setAvailableShows] = useState<LiveShow[]>([]);
   const [songAnalysis, setSongAnalysis] = useState<SongAnalysis[]>([]);
   const [completionRate, setCompletionRate] = useState<number>(0);
   const [totalSongs, setTotalSongs] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState<boolean>(loadThemeMode);
-
-  const [appMode, setAppMode] = useState<AppMode>('search');
-
-  const [searchText, setSearchText] = useState<string>('');
-  const [selectedShows, setSelectedShows] = useState<SearchTag[]>([]);
-  const [autoCompleteLoading, setAutoCompleteLoading] = useState<boolean>(false);
 
   const [groupedShows, setGroupedShows] = useState<ShowGroup[]>([]);
   const [multiSelectLoading, setMultiSelectLoading] = useState<boolean>(false);
@@ -154,14 +135,11 @@ const HomePage: React.FC = () => {
   const resultRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const { shows, isRestored } = loadSelectedShows();
-    const savedMode = loadAppMode();
+    const { ids, isRestored } = loadSelectedShowIds();
     if (isRestored) {
-      setSelectedShows(shows);
+      setSelectedShowIds(new Set(ids));
       setShowRestoredMessage(true);
-      setSelectedShowIds(new Set(shows.map((s) => s.id)));
     }
-    setAppMode(savedMode);
   }, []);
 
   const loadGroupedShows = useCallback(async () => {
@@ -178,10 +156,8 @@ const HomePage: React.FC = () => {
   }, [t]);
 
   useEffect(() => {
-    if (appMode === 'multiSelect' && groupedShows.length === 0) {
-      loadGroupedShows();
-    }
-  }, [appMode, groupedShows.length, loadGroupedShows]);
+    if (groupedShows.length === 0) loadGroupedShows();
+  }, [groupedShows.length, loadGroupedShows]);
 
   const theme = useMemo(
     () =>
@@ -243,29 +219,6 @@ const HomePage: React.FC = () => {
 
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const handleModeChange = (mode: AppMode) => {
-    setAppMode(mode);
-    saveAppMode(mode);
-    setError(null);
-    if (mode === 'multiSelect') {
-      setSelectedShowIds(new Set(selectedShows.map((s) => s.id)));
-    } else {
-      syncMultiSelectToSearch();
-    }
-  };
-
-  const syncMultiSelectToSearch = () => {
-    const next: SearchTag[] = [];
-    groupedShows.forEach((group) => {
-      group.shows.forEach((show) => {
-        if (selectedShowIds.has(show.id)) {
-          next.push({ id: show.id, label: show.performance_name });
-        }
-      });
-    });
-    setSelectedShows(next);
-  };
-
   const handleShowSelect = (showId: number, checked: boolean) => {
     const newSelected = new Set(selectedShowIds);
     if (checked) newSelected.add(showId);
@@ -292,39 +245,7 @@ const HomePage: React.FC = () => {
     }
   };
 
-  const fetchShows = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      setAvailableShows([]);
-      return;
-    }
-    setAutoCompleteLoading(true);
-    try {
-      const shows = await staticDataService.searchShows(query);
-      setAvailableShows(shows);
-    } catch (err) {
-      console.error('Failed to fetch shows:', err);
-    } finally {
-      setAutoCompleteLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => fetchShows(searchText), 300);
-    return () => clearTimeout(timer);
-  }, [searchText, fetchShows]);
-
-  const handleAddShow = (show: LiveShow | null) => {
-    if (show && !selectedShows.find((s) => s.id === show.id)) {
-      setSelectedShows((prev) => [...prev, { id: show.id, label: show.performance_name }]);
-      setSearchText('');
-    }
-  };
-
-  const handleRemoveShow = (showId: number) =>
-    setSelectedShows((prev) => prev.filter((s) => s.id !== showId));
-
   const handleClearAllConfirm = () => {
-    setSelectedShows([]);
     setSelectedShowIds(new Set());
     clearSavedShows();
     setSongAnalysis([]);
@@ -335,8 +256,7 @@ const HomePage: React.FC = () => {
   };
 
   const runAnalyze = async (reverse: boolean) => {
-    const showIds =
-      appMode === 'multiSelect' ? Array.from(selectedShowIds) : selectedShows.map((s) => s.id);
+    const showIds = Array.from(selectedShowIds);
     if (showIds.length === 0) {
       setError(t('errors.noShows'));
       return;
@@ -357,18 +277,7 @@ const HomePage: React.FC = () => {
       setTotalSongs(result.total_songs);
       setHasAnalyzed(true);
 
-      if (appMode === 'multiSelect') {
-        const synced: SearchTag[] = [];
-        groupedShows.forEach((g) =>
-          g.shows.forEach((s) => {
-            if (selectedShowIds.has(s.id)) synced.push({ id: s.id, label: s.performance_name });
-          }),
-        );
-        setSelectedShows(synced);
-        saveSelectedShows(synced);
-      } else {
-        saveSelectedShows(selectedShows);
-      }
+      saveSelectedShowIds(showIds);
 
       // Scroll to the result after rendering completes
       requestAnimationFrame(() => {
@@ -382,8 +291,7 @@ const HomePage: React.FC = () => {
     }
   };
 
-  const selectedCount =
-    appMode === 'multiSelect' ? selectedShowIds.size : selectedShows.length;
+  const selectedCount = selectedShowIds.size;
 
   const filteredGroups = useMemo(() => {
     if (!groupFilter.trim()) return groupedShows;
@@ -574,59 +482,6 @@ const HomePage: React.FC = () => {
     </Box>
   );
 
-  // ── render: mode tabs ─────────────────────────────────────────
-  const renderModeTabs = () => (
-    <Box
-      sx={{
-        borderBottom: '1px solid',
-        borderColor: 'divider',
-        position: 'sticky',
-        top: 64,
-        zIndex: 1,
-        backdropFilter: 'saturate(180%) blur(12px)',
-        backgroundColor: darkMode ? 'rgba(14,14,16,0.78)' : 'rgba(255,255,255,0.78)',
-      }}
-    >
-      <Container maxWidth="lg">
-        <Box sx={{ display: 'flex', gap: 4 }}>
-          {(['search', 'multiSelect'] as AppMode[]).map((mode) => {
-            const active = appMode === mode;
-            return (
-              <Box
-                key={mode}
-                onClick={() => handleModeChange(mode)}
-                sx={{
-                  position: 'relative',
-                  py: 2,
-                  cursor: 'pointer',
-                  color: active ? 'text.primary' : 'text.secondary',
-                  fontSize: 13,
-                  fontWeight: active ? 600 : 500,
-                  letterSpacing: '0.04em',
-                  transition: 'color 120ms ease',
-                  '&:hover': { color: 'text.primary' },
-                  '&::after': active
-                    ? {
-                        content: '""',
-                        position: 'absolute',
-                        left: 0,
-                        right: 0,
-                        bottom: -1,
-                        height: 2,
-                        backgroundColor: MAGENTA,
-                      }
-                    : undefined,
-                }}
-              >
-                {t(`modes.${mode}`)}
-              </Box>
-            );
-          })}
-        </Box>
-      </Container>
-    </Box>
-  );
-
   // ── render: floating bottom action bar ────────────────────────
   // Renders only when at least one show is selected. Sits fixed above the
   // viewport bottom so users don't have to scroll past dozens of cards to
@@ -736,85 +591,6 @@ const HomePage: React.FC = () => {
     );
   };
 
-  // ── render: search panel ──────────────────────────────────────
-  const renderSearchPanel = () => (
-    <Box sx={{ py: 5 }}>
-      <Typography variant="overline" sx={{ color: 'text.secondary', display: 'block', mb: 2 }}>
-        ── {t('modes.search')}
-      </Typography>
-
-      <Autocomplete
-        options={availableShows}
-        getOptionLabel={(option) => option.performance_name}
-        loading={autoCompleteLoading}
-        value={null}
-        inputValue={searchText}
-        onInputChange={(_, v) => setSearchText(v)}
-        onChange={(_, v) => handleAddShow(v)}
-        clearOnBlur
-        clearOnEscape
-        renderInput={(params) => (
-          <TextField
-            {...params}
-            placeholder={t('search.placeholder')}
-            fullWidth
-            variant="outlined"
-            InputProps={{
-              ...params.InputProps,
-              startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} fontSize="small" />,
-              endAdornment: (
-                <>
-                  {autoCompleteLoading ? <CircularProgress color="inherit" size={16} /> : null}
-                  {params.InputProps.endAdornment}
-                </>
-              ),
-              sx: { fontSize: 18, py: 0.5 },
-            }}
-          />
-        )}
-        renderOption={(props, option) => {
-          const { key, ...other } = props as any;
-          return (
-            <Box key={key} {...other} component="li" sx={{ display: 'block !important', py: 1.25 }}>
-              <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
-                {option.performance_name}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ fontFeatureSettings: '"tnum"' }}>
-                {formatDate(option.date)} · {option.venue}
-              </Typography>
-            </Box>
-          );
-        }}
-        noOptionsText={t('search.noResults')}
-      />
-
-      {selectedShows.length > 0 && (
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 3 }}>
-          {selectedShows.map((show) => (
-            <Chip
-              key={show.id}
-              label={show.label}
-              onDelete={() => handleRemoveShow(show.id)}
-              deleteIcon={<CloseIcon fontSize="small" />}
-              variant="outlined"
-              sx={{
-                maxWidth: '100%',
-                borderColor: 'divider',
-                '& .MuiChip-label': {
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  maxWidth: 460,
-                },
-                '&:hover': { borderColor: MAGENTA },
-              }}
-            />
-          ))}
-        </Box>
-      )}
-    </Box>
-  );
-
   // ── render: show card ─────────────────────────────────────────
   const renderShowCard = (show: LiveShow) => {
     const selected = selectedShowIds.has(show.id);
@@ -902,11 +678,21 @@ const HomePage: React.FC = () => {
     );
   };
 
-  // ── render: multi-select panel ────────────────────────────────
-  const renderMultiSelectPanel = () => (
-    <Box sx={{ py: 5 }}>
+  // ── render: select panel ──────────────────────────────────────
+  const renderSelectPanel = () => (
+    <Box sx={{ pt: 4, pb: 2 }}>
       <Box
         sx={{
+          position: 'sticky',
+          top: 64,
+          zIndex: 1,
+          mx: { xs: -2, sm: -3 },
+          px: { xs: 2, sm: 3 },
+          py: 2,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          backdropFilter: 'saturate(180%) blur(12px)',
+          backgroundColor: darkMode ? 'rgba(14,14,16,0.86)' : 'rgba(255,255,255,0.88)',
           display: 'flex',
           alignItems: { xs: 'flex-start', sm: 'center' },
           justifyContent: 'space-between',
@@ -915,7 +701,7 @@ const HomePage: React.FC = () => {
           mb: 3,
         }}
       >
-        <Box>
+        <Box sx={{ minWidth: 0 }}>
           <Typography variant="overline" sx={{ color: 'text.secondary', display: 'block', mb: 0.5 }}>
             ── {t('multiSelect.title')}
           </Typography>
@@ -924,6 +710,7 @@ const HomePage: React.FC = () => {
               fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
               fontSize: 22,
               fontWeight: 600,
+              fontFeatureSettings: '"tnum"',
             }}
           >
             {filteredGroups.reduce((acc, g) => acc + g.shows.length, 0)} {t('multiSelect.showCount')}
@@ -938,7 +725,7 @@ const HomePage: React.FC = () => {
             InputProps={{
               startAdornment: <SearchIcon sx={{ mr: 0.5, color: 'text.secondary' }} fontSize="small" />,
             }}
-            sx={{ minWidth: 220 }}
+            sx={{ minWidth: { xs: '100%', sm: 260 } }}
           />
           <Button
             variant="text"
@@ -1276,10 +1063,9 @@ const HomePage: React.FC = () => {
 
       {renderHeader()}
       {renderHero()}
-      {renderModeTabs()}
 
       <Container maxWidth="lg" sx={{ pb: selectedCount > 0 ? { xs: 14, sm: 12 } : 0 }}>
-        {appMode === 'search' ? renderSearchPanel() : renderMultiSelectPanel()}
+        {renderSelectPanel()}
 
         {error && (
           <Alert
@@ -1308,7 +1094,7 @@ const HomePage: React.FC = () => {
           severity="info"
           sx={{ borderRadius: 0 }}
         >
-          {t('search.restored')} ({selectedShows.length})
+          {t('search.restored')} ({selectedShowIds.size})
         </Alert>
       </Snackbar>
 
