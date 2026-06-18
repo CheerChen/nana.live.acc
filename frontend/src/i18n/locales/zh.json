@@ -18,7 +18,7 @@
     "deselectAll": "取消全选",
     "groupSelect": "选择分组",
     "showCount": "场公演",
-    "selectedCount": "已选择 {{count}} 场公演",
+    "selectedCount": "场公演已选择",
     "noShows": "暂无公演数据"
   },
   "search": {
@@ -36,8 +36,8 @@
     "reverse": "计算MISS率",
     "resultTitle": "达成歌曲",
     "reverseResultTitle": "MISS歌曲",
-    "completionRate": "达成率",
-    "incompletionRate": "MISS率",
+    "completionRate": "全曲达成率",
+    "incompletionRate": "全曲MISS率",
     "subtitle": "显示在选定公演中出现的歌曲，按出现次数排序",
     "reverseSubtitle": "显示在选定公演中一次也没有出现的歌曲，按历史选出率排序",
     "completionDescription": "达成歌曲占所有歌曲的百分比",

@@ -18,7 +18,7 @@
     "deselectAll": "全選択解除",
     "groupSelect": "グループ選択",
     "showCount": "公演",
-    "selectedCount": "{{count}}公演を選択中",
+    "selectedCount": "公演を選択中",
     "noShows": "公演データがありません"
   },
   "search": {
@@ -36,8 +36,8 @@
     "reverse": "MISS率を計算",
     "resultTitle": "達成楽曲",
     "reverseResultTitle": "未達成楽曲",
-    "completionRate": "達成率",
-    "incompletionRate": "MISS率",
+    "completionRate": "全曲達成率",
+    "incompletionRate": "全曲MISS率",
     "subtitle": "選択した公演で達成された楽曲を、披露回数の多い順に表示",
     "reverseSubtitle": "選択した公演で一度も達成されなかった楽曲を、過去の達成率順に表示",
     "completionDescription": "達成された楽曲が全楽曲に占める割合",

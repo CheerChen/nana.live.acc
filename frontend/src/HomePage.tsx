@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Container,
   Box,
@@ -11,10 +11,6 @@ import {
   Toolbar,
   Snackbar,
   Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
   Drawer,
   IconButton,
   Tooltip,
@@ -25,6 +21,8 @@ import {
   TableHead,
   TableRow,
   TableSortLabel,
+  Tab,
+  Tabs,
   createTheme,
   ThemeProvider,
   CssBaseline,
@@ -32,14 +30,13 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import {
-  Search as SearchIcon,
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
-  ClearAll as ClearAllIcon,
-  SearchOff as SearchOffIcon,
   Check as CheckIcon,
   Close as CloseIcon,
+  ExpandMore as ExpandMoreIcon,
   GridView as GridViewIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import {
@@ -58,6 +55,13 @@ interface ShowGroup {
 
 type SortKey = 'hit_count' | 'total_appearances' | 'selection_rate' | 'song_name';
 type SortDir = 'asc' | 'desc';
+type AnalysisMode = 'heard' | 'missed';
+
+interface AnalysisSnapshot {
+  songs: SongAnalysis[];
+  completionRate: number;
+  totalSongs: number;
+}
 
 const STORAGE_KEY = 'nana-selected-shows';
 const THEME_STORAGE_KEY = 'nana-theme-mode';
@@ -109,8 +113,6 @@ const loadSelectedShowIds = (): { ids: number[]; isRestored: boolean } => {
   }
 };
 
-const clearSavedShows = () => localStorage.removeItem(STORAGE_KEY);
-
 const loadThemeMode = (): boolean => {
   const saved = localStorage.getItem(THEME_STORAGE_KEY);
   if (saved === 'light') return false;
@@ -151,10 +153,11 @@ const formatElapsed = (iso: string, t: Translator, now: Date = new Date()): stri
 const HomePage: React.FC = () => {
   const { t } = useTranslation();
 
-  const [songAnalysis, setSongAnalysis] = useState<SongAnalysis[]>([]);
-  const [completionRate, setCompletionRate] = useState<number>(0);
-  const [totalSongs, setTotalSongs] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [heardAnalysis, setHeardAnalysis] = useState<AnalysisSnapshot | null>(null);
+  const [missedAnalysis, setMissedAnalysis] = useState<AnalysisSnapshot | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState<boolean>(false);
+  const [analysisExpanded, setAnalysisExpanded] = useState<boolean>(false);
+  const [analysisTab, setAnalysisTab] = useState<AnalysisMode>('heard');
   const [error, setError] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState<boolean>(loadThemeMode);
 
@@ -164,11 +167,6 @@ const HomePage: React.FC = () => {
   const [groupFilter, setGroupFilter] = useState<string>('');
 
   const [showRestoredMessage, setShowRestoredMessage] = useState<boolean>(false);
-  const [hasAnalyzed, setHasAnalyzed] = useState<boolean>(false);
-  const [isReverseAnalysis, setIsReverseAnalysis] = useState<boolean>(false);
-
-  const [showClearConfirm, setShowClearConfirm] = useState<boolean>(false);
-
   const [sortKey, setSortKey] = useState<SortKey>('hit_count');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
@@ -184,8 +182,6 @@ const HomePage: React.FC = () => {
     detail: SongDetail | null;
     loading: boolean;
   }>({ open: false, detail: null, loading: false });
-
-  const resultRef = useRef<HTMLDivElement | null>(null);
 
   // Theme-aware accent colors. Magenta stays as the brand mark in dark mode;
   // light mode swaps to indigo blue so the UI feels different from a
@@ -342,53 +338,53 @@ const HomePage: React.FC = () => {
     }
   };
 
-  const handleClearAllConfirm = () => {
-    setSelectedShowIds(new Set());
-    clearSavedShows();
-    setSongAnalysis([]);
-    setCompletionRate(0);
-    setHasAnalyzed(false);
-    setIsReverseAnalysis(false);
-    setShowClearConfirm(false);
-  };
+  const selectedCount = selectedShowIds.size;
 
-  const runAnalyze = async (reverse: boolean) => {
-    const showIds = Array.from(selectedShowIds);
-    if (showIds.length === 0) {
-      setError(t('errors.noShows'));
+  useEffect(() => {
+    if (selectedCount === 0) {
+      setHeardAnalysis(null);
+      setMissedAnalysis(null);
+      setAnalysisLoading(false);
+      setAnalysisExpanded(false);
       return;
     }
-    setLoading(true);
-    setError(null);
-    setIsReverseAnalysis(reverse);
-    setSortKey(reverse ? 'selection_rate' : 'hit_count');
-    setSortDir('desc');
 
-    try {
-      const result = reverse
-        ? await staticDataService.analyzeReverseSongs(showIds)
-        : await staticDataService.analyzeSongs(showIds);
+    const showIds = Array.from(selectedShowIds);
+    saveSelectedShowIds(showIds);
 
-      setSongAnalysis(result.songs);
-      setCompletionRate(result.completion_rate);
-      setTotalSongs(result.total_songs);
-      setHasAnalyzed(true);
+    let cancelled = false;
+    setAnalysisLoading(true);
 
-      saveSelectedShowIds(showIds);
-
-      // Scroll to the result after rendering completes
-      requestAnimationFrame(() => {
-        resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    Promise.all([
+      staticDataService.analyzeSongs(showIds),
+      staticDataService.analyzeReverseSongs(showIds),
+    ])
+      .then(([heard, missed]) => {
+        if (cancelled) return;
+        setHeardAnalysis({
+          songs: heard.songs,
+          completionRate: heard.completion_rate,
+          totalSongs: heard.total_songs,
+        });
+        setMissedAnalysis({
+          songs: missed.songs,
+          completionRate: missed.completion_rate,
+          totalSongs: missed.total_songs,
+        });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('Analysis failed:', err);
+        setError(t('errors.analysisFailed'));
+      })
+      .finally(() => {
+        if (!cancelled) setAnalysisLoading(false);
       });
-    } catch (err) {
-      setError(t(reverse ? 'errors.reverseAnalysisFailed' : 'errors.analysisFailed'));
-      console.error('Analysis failed:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const selectedCount = selectedShowIds.size;
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCount, selectedShowIds, t]);
 
   const filteredGroups = useMemo(() => {
     if (!groupFilter.trim()) return groupedShows;
@@ -406,8 +402,16 @@ const HomePage: React.FC = () => {
       .filter((g) => g.shows.length > 0);
   }, [groupedShows, groupFilter]);
 
+  const activeAnalysis = analysisTab === 'heard' ? heardAnalysis : missedAnalysis;
+  const activeSongs = useMemo(() => activeAnalysis?.songs ?? [], [activeAnalysis]);
+
+  useEffect(() => {
+    setSortKey(analysisTab === 'heard' ? 'hit_count' : 'selection_rate');
+    setSortDir('desc');
+  }, [analysisTab]);
+
   const sortedSongs = useMemo(() => {
-    const copy = [...songAnalysis];
+    const copy = [...activeSongs];
     copy.sort((a, b) => {
       const av = a[sortKey];
       const bv = b[sortKey];
@@ -419,7 +423,7 @@ const HomePage: React.FC = () => {
         : String(bv).localeCompare(String(av));
     });
     return copy;
-  }, [songAnalysis, sortKey, sortDir]);
+  }, [activeSongs, sortKey, sortDir]);
 
   const maxHit = useMemo(
     () => sortedSongs.reduce((m, s) => Math.max(m, s.hit_count || 0), 0),
@@ -585,11 +589,12 @@ const HomePage: React.FC = () => {
   );
 
   // ── render: floating bottom action bar ────────────────────────
-  // Renders only when at least one show is selected. Sits fixed above the
-  // viewport bottom so users don't have to scroll past dozens of cards to
-  // hit "Calculate".
   const renderFloatingActionBar = () => {
     if (selectedCount === 0) return null;
+
+    const heardRate = heardAnalysis ? (heardAnalysis.completionRate * 100).toFixed(1) : '—';
+    const missedRate = missedAnalysis ? (missedAnalysis.completionRate * 100).toFixed(1) : '—';
+
     return (
       <Box
         sx={{
@@ -612,83 +617,411 @@ const HomePage: React.FC = () => {
         <Container
           maxWidth="lg"
           sx={{
-            py: 1.5,
             display: 'flex',
-            alignItems: 'center',
-            gap: { xs: 1, sm: 2 },
-            flexWrap: 'wrap',
+            flexDirection: 'column',
+            py: 1.5,
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexGrow: 1, minWidth: 0 }}>
-            <Typography
-              sx={{
-                fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
-                fontSize: { xs: 22, sm: 28 },
-                fontWeight: 600,
-                color: accent,
-                fontFeatureSettings: '"tnum"',
-                lineHeight: 1,
-              }}
-            >
-              {selectedCount}
-            </Typography>
-            <Typography
-              variant="overline"
-              sx={{
-                color: 'text.secondary',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {t('multiSelect.selectedCount', { count: selectedCount })}
-            </Typography>
-          </Box>
-          <Button
-            variant="text"
-            size="small"
-            onClick={() => setShowClearConfirm(true)}
-            startIcon={<ClearAllIcon fontSize="small" />}
-            sx={{ color: 'text.secondary' }}
-          >
-            {t('search.clear')}
-          </Button>
-          <Button
-            variant="outlined"
-            size="medium"
-            onClick={() => runAnalyze(true)}
-            disabled={loading}
-            startIcon={
-              loading && isReverseAnalysis ? (
-                <CircularProgress size={14} color="inherit" />
-              ) : (
-                <SearchOffIcon fontSize="small" />
-              )
-            }
+          <Box
             sx={{
-              borderColor: 'divider',
-              color: 'text.primary',
-              '&:hover': { borderColor: accent, color: accent },
+              width: '100%',
+              position: 'relative',
             }}
           >
-            {loading && isReverseAnalysis ? t('analysis.loading') : t('analysis.reverse')}
-          </Button>
-          <Button
-            variant="contained"
-            size="medium"
-            onClick={() => runAnalyze(false)}
-            disabled={loading}
-            startIcon={
-              loading && !isReverseAnalysis ? (
-                <CircularProgress size={14} color="inherit" />
-              ) : (
-                <SearchIcon fontSize="small" />
-              )
-            }
-          >
-            {loading && !isReverseAnalysis ? t('analysis.loading') : t('analysis.button')}
-          </Button>
+            <Box
+              component="button"
+              type="button"
+              onClick={() => setAnalysisExpanded((open) => !open)}
+              disabled={analysisLoading && !heardAnalysis && !missedAnalysis}
+              aria-expanded={analysisExpanded}
+              sx={{
+                width: '100%',
+                appearance: 'none',
+                border: 'none',
+                background: analysisExpanded
+                  ? darkMode
+                    ? 'rgba(255,255,255,0.04)'
+                    : 'rgba(48,110,255,0.06)'
+                  : 'transparent',
+                color: 'inherit',
+                cursor: 'pointer',
+                textAlign: 'left',
+                p: 0,
+                borderRadius: 1,
+                transition: 'background-color 180ms ease, transform 180ms ease',
+                '&:hover': {
+                  background: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(48,110,255,0.05)',
+                },
+              }}
+            >
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: { xs: 1.5, sm: 2 },
+                  flexWrap: 'wrap',
+                  px: 0.5,
+                  py: 0.75,
+                  position: 'relative',
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexGrow: 1, minWidth: 0 }}>
+                  <Typography
+                    sx={{
+                      fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+                      fontSize: { xs: 22, sm: 28 },
+                      fontWeight: 600,
+                      color: accent,
+                      fontFeatureSettings: '"tnum"',
+                      lineHeight: 1,
+                    }}
+                  >
+                    {selectedCount}
+                  </Typography>
+                  <Typography
+                    variant="overline"
+                    sx={{
+                      color: 'text.secondary',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {t('multiSelect.selectedCount', { count: selectedCount })}
+                  </Typography>
+                </Box>
+
+                {[
+                  { label: t('analysis.completionRate'), value: heardRate },
+                  { label: t('analysis.incompletionRate'), value: missedRate },
+                ].map((item) => (
+                  <Box
+                    key={item.label}
+                    sx={{
+                      minWidth: { xs: 104, sm: 124 },
+                      borderLeft: { xs: 'none', sm: '1px solid' },
+                      borderColor: 'divider',
+                      pl: { xs: 0, sm: 2 },
+                    }}
+                  >
+                    <Typography variant="overline" sx={{ color: 'text.secondary', display: 'block' }}>
+                      ── {item.label}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
+                      <Typography
+                        sx={{
+                          fontFeatureSettings: '"tnum"',
+                          fontWeight: 600,
+                          color: 'text.primary',
+                        }}
+                      >
+                        {analysisLoading ? t('common.loading') : item.value}
+                      </Typography>
+                      {!analysisLoading && item.value !== '—' && (
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          %
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+                ))}
+
+                <Box
+                  aria-hidden
+                  sx={{
+                    position: 'absolute',
+                    left: '50%',
+                    bottom: -10,
+                    transform: analysisExpanded ? 'translateX(-50%) rotate(180deg)' : 'translateX(-50%) rotate(0deg)',
+                    width: 26,
+                    height: 26,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '50%',
+                    color: accent,
+                    backgroundColor: darkMode ? `${accent}1f` : `${accent}14`,
+                    border: '1px solid',
+                    borderColor: darkMode ? `${accent}55` : `${accent}33`,
+                    boxShadow: darkMode ? '0 6px 18px rgba(0,0,0,0.28)' : '0 6px 18px rgba(48,110,255,0.18)',
+                    transition: 'transform 220ms ease, background-color 180ms ease, box-shadow 180ms ease',
+                  }}
+                >
+                  <ExpandMoreIcon fontSize="small" />
+                </Box>
+              </Box>
+            </Box>
+          </Box>
+
+          {analysisExpanded && renderAnalysisPanel()}
         </Container>
+      </Box>
+    );
+  };
+
+  const renderAnalysisPanel = () => {
+    const totalForRate = activeAnalysis?.totalSongs ?? 0;
+    const rateValue = activeAnalysis ? (activeAnalysis.completionRate * 100).toFixed(1) : '—';
+
+    return (
+      <Box
+        sx={{
+          width: '100%',
+          mt: 1.5,
+          borderTop: '1px solid',
+          borderColor: 'divider',
+          pt: 2,
+        }}
+      >
+        <Box
+          sx={{
+            pb: 2,
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: '240px 1fr' },
+            gap: { xs: 2, md: 4 },
+            alignItems: 'end',
+          }}
+        >
+          <Box>
+            <Typography variant="overline" sx={{ color: 'text.secondary', display: 'block', mb: 0.75 }}>
+              ── {analysisTab === 'heard' ? t('analysis.completionRate') : t('analysis.incompletionRate')}
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
+              <Typography
+                sx={{
+                  fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+                  fontSize: { xs: 40, md: 52 },
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  color: accent,
+                  fontFeatureSettings: '"tnum"',
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                {analysisLoading && !activeAnalysis ? t('common.loading') : rateValue}
+              </Typography>
+              {!analysisLoading && activeAnalysis && (
+                <Typography sx={{ fontSize: 20, color: accent, fontWeight: 500 }}>%</Typography>
+              )}
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+              {analysisTab === 'heard' ? t('analysis.completionDescription') : t('analysis.incompletionDescription')}
+            </Typography>
+          </Box>
+
+          <Box sx={{ minWidth: 0 }}>
+            <Tabs
+              value={analysisTab}
+              onChange={(_, next: AnalysisMode) => setAnalysisTab(next)}
+              textColor="primary"
+              indicatorColor="primary"
+              variant="fullWidth"
+              sx={{
+                minHeight: 0,
+                mb: 1,
+                '& .MuiTab-root': {
+                  minHeight: 0,
+                  px: 1.5,
+                  py: 1,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  letterSpacing: '0.14em',
+                },
+              }}
+            >
+              <Tab value="heard" label={t('analysis.resultTitle')} />
+              <Tab value="missed" label={t('analysis.reverseResultTitle')} />
+            </Tabs>
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', py: 1 }}>
+              <Typography variant="overline" color="text.secondary">
+                {analysisTab === 'heard' ? t('analysis.resultTitle') : t('analysis.reverseResultTitle')}
+              </Typography>
+              <Typography sx={{ fontFeatureSettings: '"tnum"', fontWeight: 600, fontSize: 15 }}>
+                {activeSongs.length} / {totalForRate}
+              </Typography>
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', pt: 1 }}>
+              {analysisTab === 'heard' ? t('analysis.subtitle') : t('analysis.reverseSubtitle')}
+            </Typography>
+          </Box>
+        </Box>
+
+        {analysisLoading && !activeAnalysis && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}>
+            <CircularProgress size={24} sx={{ color: accent }} />
+          </Box>
+        )}
+
+        {!analysisLoading && activeAnalysis && activeSongs.length === 0 && (
+          <Alert severity="info" sx={{ borderRadius: 0 }}>
+            {analysisTab === 'heard' ? t('analysis.subtitle') : t('analysis.reverseSubtitle')}
+          </Alert>
+        )}
+
+        {activeAnalysis && activeSongs.length > 0 && (
+          <TableContainer
+            sx={{
+              borderTop: '1px solid',
+              borderColor: 'divider',
+              maxHeight: { xs: '44vh', md: '50vh' },
+            }}
+          >
+            <Table stickyHeader size={isMobile ? 'small' : 'medium'} sx={{ tableLayout: 'fixed' }}>
+              <TableHead>
+                <TableRow sx={{ '& th': { border: 0, borderBottom: '1px solid', borderColor: 'divider' } }}>
+                  <TableCell sx={{ width: 56, color: 'text.secondary', backgroundColor: 'background.default' }}>
+                    <Typography variant="overline">#</Typography>
+                  </TableCell>
+                  <TableCell sx={{ backgroundColor: 'background.default' }}>
+                    <TableSortLabel
+                      active={sortKey === 'song_name'}
+                      direction={sortKey === 'song_name' ? sortDir : 'asc'}
+                      onClick={() => toggleSort('song_name')}
+                    >
+                      <Typography variant="overline">{t('table.songName')}</Typography>
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell align="right" sx={{ width: { xs: 80, md: 140 }, backgroundColor: 'background.default' }}>
+                    <TableSortLabel
+                      active={sortKey === 'hit_count'}
+                      direction={sortKey === 'hit_count' ? sortDir : 'desc'}
+                      onClick={() => toggleSort('hit_count')}
+                    >
+                      <Typography variant="overline">{t('table.hitCount')}</Typography>
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell
+                    align="right"
+                    sx={{
+                      width: { xs: 80, md: 120 },
+                      display: { xs: 'none', sm: 'table-cell' },
+                      backgroundColor: 'background.default',
+                    }}
+                  >
+                    <TableSortLabel
+                      active={sortKey === 'total_appearances'}
+                      direction={sortKey === 'total_appearances' ? sortDir : 'desc'}
+                      onClick={() => toggleSort('total_appearances')}
+                    >
+                      <Typography variant="overline">{t('table.totalAppearances')}</Typography>
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell align="right" sx={{ width: { xs: 80, md: 100 }, backgroundColor: 'background.default' }}>
+                    <TableSortLabel
+                      active={sortKey === 'selection_rate'}
+                      direction={sortKey === 'selection_rate' ? sortDir : 'desc'}
+                      onClick={() => toggleSort('selection_rate')}
+                    >
+                      <Typography variant="overline">{t('table.selectionRate')}</Typography>
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sx={{ width: { md: '32%' }, display: { xs: 'none', md: 'table-cell' }, backgroundColor: 'background.default' }}>
+                    <Typography variant="overline">{t('table.latestPerformance')}</Typography>
+                  </TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sortedSongs.map((row, idx) => {
+                  const rate = Number(row.selection_rate) || 0;
+                  const hit = row.hit_count || 0;
+                  const barWidth = maxHit > 0 ? (hit / maxHit) * 100 : 0;
+                  return (
+                    <TableRow
+                      key={row.id}
+                      hover
+                      onClick={() => handleOpenSongModal(row.id)}
+                      sx={{
+                        cursor: 'pointer',
+                        '& td': { border: 0, borderBottom: '1px solid', borderColor: 'divider', py: 1.25 },
+                        transition: 'background 120ms ease',
+                        '&:hover': {
+                          backgroundColor: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                        },
+                        '&:hover .song-name': { color: accent },
+                      }}
+                    >
+                      <TableCell sx={{ color: 'text.secondary', fontFeatureSettings: '"tnum"' }}>
+                        {String(idx + 1).padStart(2, '0')}
+                      </TableCell>
+                      <TableCell>
+                        <Typography
+                          variant="body2"
+                          className="song-name"
+                          sx={{ fontWeight: 500, transition: 'color 120ms ease' }}
+                        >
+                          {row.song_name}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ display: { xs: 'block', md: 'none' }, mt: 0.5 }}
+                          noWrap
+                        >
+                          {row.latest_performance}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
+                          <Box
+                            sx={{
+                              position: 'relative',
+                              width: { xs: 24, md: 64 },
+                              height: 2,
+                              backgroundColor: 'divider',
+                              display: { xs: 'none', md: 'block' },
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                position: 'absolute',
+                                inset: 0,
+                                width: `${barWidth}%`,
+                                backgroundColor: accent,
+                              }}
+                            />
+                          </Box>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontFeatureSettings: '"tnum"',
+                              fontWeight: 600,
+                              minWidth: 28,
+                              textAlign: 'right',
+                            }}
+                          >
+                            {hit}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell
+                        align="right"
+                        sx={{
+                          fontFeatureSettings: '"tnum"',
+                          color: 'text.secondary',
+                          display: { xs: 'none', sm: 'table-cell' },
+                        }}
+                      >
+                        {row.total_appearances}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontFeatureSettings: '"tnum"', color: 'text.secondary' }}>
+                        {(rate * 100).toFixed(1)}%
+                      </TableCell>
+                      <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                        <Typography variant="body2" noWrap>
+                          {row.latest_performance}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap>
+                          {row.latest_venue}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
       </Box>
     );
   };
@@ -1520,238 +1853,6 @@ const HomePage: React.FC = () => {
     </Box>
   );
 
-  // ── render: result panel ──────────────────────────────────────
-  const renderResultPanel = () => {
-    if (songAnalysis.length === 0) return null;
-    const totalForRate = totalSongs || Math.round(songAnalysis.length / (completionRate || 1));
-    return (
-      <Box ref={resultRef} sx={{ pb: 8, scrollMarginTop: 120 }}>
-        <Box
-          sx={{
-            borderTop: '1px solid',
-            borderColor: 'divider',
-            pt: 5,
-            pb: 4,
-            display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-            gap: { xs: 3, md: 6 },
-            alignItems: 'end',
-          }}
-        >
-          <Box>
-            <Typography variant="overline" sx={{ color: 'text.secondary', display: 'block', mb: 1 }}>
-              ── {isReverseAnalysis ? t('analysis.incompletionRate') : t('analysis.completionRate')}
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-              <Typography
-                sx={{
-                  fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
-                  fontSize: { xs: 56, md: 88 },
-                  fontWeight: 600,
-                  lineHeight: 1,
-                  color: accent,
-                  fontFeatureSettings: '"tnum"',
-                  letterSpacing: '-0.02em',
-                }}
-              >
-                {(completionRate * 100).toFixed(1)}
-              </Typography>
-              <Typography sx={{ fontSize: 28, color: accent, fontWeight: 500 }}>%</Typography>
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-              {isReverseAnalysis ? t('analysis.incompletionDescription') : t('analysis.completionDescription')}
-            </Typography>
-          </Box>
-
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', py: 1 }}>
-              <Typography variant="overline" color="text.secondary">
-                {isReverseAnalysis ? t('analysis.reverseResultTitle') : t('analysis.resultTitle')}
-              </Typography>
-              <Typography
-                sx={{
-                  fontFeatureSettings: '"tnum"',
-                  fontWeight: 600,
-                  fontSize: 15,
-                }}
-              >
-                {songAnalysis.length} / {totalForRate}
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', py: 1 }}>
-              <Typography variant="overline" color="text.secondary">
-                Shows analyzed
-              </Typography>
-              <Typography sx={{ fontFeatureSettings: '"tnum"', fontWeight: 600, fontSize: 15 }}>
-                {selectedCount}
-              </Typography>
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ pt: 1 }}>
-              {hasAnalyzed && (isReverseAnalysis ? t('analysis.reverseSubtitle') : t('analysis.subtitle'))}
-            </Typography>
-          </Box>
-        </Box>
-
-        <TableContainer
-          sx={{
-            borderTop: '1px solid',
-            borderColor: 'divider',
-          }}
-        >
-          <Table size={isMobile ? 'small' : 'medium'} sx={{ tableLayout: 'fixed' }}>
-            <TableHead>
-              <TableRow sx={{ '& th': { border: 0, borderBottom: '1px solid', borderColor: 'divider' } }}>
-                <TableCell sx={{ width: 56, color: 'text.secondary' }}>
-                  <Typography variant="overline">#</Typography>
-                </TableCell>
-                <TableCell>
-                  <TableSortLabel
-                    active={sortKey === 'song_name'}
-                    direction={sortKey === 'song_name' ? sortDir : 'asc'}
-                    onClick={() => toggleSort('song_name')}
-                  >
-                    <Typography variant="overline">{t('table.songName')}</Typography>
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell align="right" sx={{ width: { xs: 80, md: 140 } }}>
-                  <TableSortLabel
-                    active={sortKey === 'hit_count'}
-                    direction={sortKey === 'hit_count' ? sortDir : 'desc'}
-                    onClick={() => toggleSort('hit_count')}
-                  >
-                    <Typography variant="overline">{t('table.hitCount')}</Typography>
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell align="right" sx={{ width: { xs: 80, md: 120 }, display: { xs: 'none', sm: 'table-cell' } }}>
-                  <TableSortLabel
-                    active={sortKey === 'total_appearances'}
-                    direction={sortKey === 'total_appearances' ? sortDir : 'desc'}
-                    onClick={() => toggleSort('total_appearances')}
-                  >
-                    <Typography variant="overline">{t('table.totalAppearances')}</Typography>
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell align="right" sx={{ width: { xs: 80, md: 100 } }}>
-                  <TableSortLabel
-                    active={sortKey === 'selection_rate'}
-                    direction={sortKey === 'selection_rate' ? sortDir : 'desc'}
-                    onClick={() => toggleSort('selection_rate')}
-                  >
-                    <Typography variant="overline">{t('table.selectionRate')}</Typography>
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell sx={{ width: { md: '32%' }, display: { xs: 'none', md: 'table-cell' } }}>
-                  <Typography variant="overline">{t('table.latestPerformance')}</Typography>
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {sortedSongs.map((row, idx) => {
-                const rate = Number(row.selection_rate) || 0;
-                const hit = row.hit_count || 0;
-                const barWidth = maxHit > 0 ? (hit / maxHit) * 100 : 0;
-                return (
-                  <TableRow
-                    key={row.id}
-                    hover
-                    onClick={() => handleOpenSongModal(row.id)}
-                    sx={{
-                      cursor: 'pointer',
-                      '& td': { border: 0, borderBottom: '1px solid', borderColor: 'divider', py: 1.5 },
-                      transition: 'background 120ms ease',
-                      '&:hover': {
-                        backgroundColor: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-                      },
-                      '&:hover .song-name': { color: accent },
-                    }}
-                  >
-                    <TableCell sx={{ color: 'text.secondary', fontFeatureSettings: '"tnum"' }}>
-                      {String(idx + 1).padStart(2, '0')}
-                    </TableCell>
-                    <TableCell>
-                      <Typography
-                        variant="body2"
-                        className="song-name"
-                        sx={{ fontWeight: 500, transition: 'color 120ms ease' }}
-                      >
-                        {row.song_name}
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ display: { xs: 'block', md: 'none' }, mt: 0.5 }}
-                        noWrap
-                      >
-                        {row.latest_performance}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
-                        <Box
-                          sx={{
-                            position: 'relative',
-                            width: { xs: 24, md: 64 },
-                            height: 2,
-                            backgroundColor: 'divider',
-                            display: { xs: 'none', md: 'block' },
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              position: 'absolute',
-                              inset: 0,
-                              width: `${barWidth}%`,
-                              backgroundColor: accent,
-                            }}
-                          />
-                        </Box>
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            fontFeatureSettings: '"tnum"',
-                            fontWeight: 600,
-                            minWidth: 28,
-                            textAlign: 'right',
-                          }}
-                        >
-                          {hit}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{
-                        fontFeatureSettings: '"tnum"',
-                        color: 'text.secondary',
-                        display: { xs: 'none', sm: 'table-cell' },
-                      }}
-                    >
-                      {row.total_appearances}
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{ fontFeatureSettings: '"tnum"', color: 'text.secondary' }}
-                    >
-                      {(rate * 100).toFixed(1)}%
-                    </TableCell>
-                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
-                      <Typography variant="body2" noWrap>
-                        {row.latest_performance}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" noWrap>
-                        {row.latest_venue}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Box>
-    );
-  };
-
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -1760,7 +1861,10 @@ const HomePage: React.FC = () => {
       {renderHeader()}
       {renderHero()}
 
-      <Container maxWidth="lg" sx={{ pb: selectedCount > 0 ? { xs: 14, sm: 12 } : 0 }}>
+      <Container
+        maxWidth="lg"
+        sx={{ pb: selectedCount > 0 ? { xs: analysisExpanded ? 34 : 14, sm: analysisExpanded ? 40 : 12 } : 0 }}
+      >
         {renderSelectPanel()}
 
         {error && (
@@ -1772,8 +1876,6 @@ const HomePage: React.FC = () => {
             {error}
           </Alert>
         )}
-
-        {renderResultPanel()}
       </Container>
 
       {renderFloatingActionBar()}
@@ -1795,27 +1897,6 @@ const HomePage: React.FC = () => {
           {t('search.restored')} ({selectedShowIds.size})
         </Alert>
       </Snackbar>
-
-      <Dialog
-        open={showClearConfirm}
-        onClose={() => setShowClearConfirm(false)}
-        PaperProps={{ sx: { borderRadius: 0, border: '1px solid', borderColor: 'divider' } }}
-      >
-        <DialogTitle sx={{ fontFamily: '"Shippori Mincho", "Noto Serif JP", serif' }}>
-          {t('search.clearConfirmTitle')}
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText>{t('search.clearConfirmMessage')}</DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowClearConfirm(false)} sx={{ color: 'text.secondary' }}>
-            {t('common.cancel')}
-          </Button>
-          <Button onClick={handleClearAllConfirm} color="primary" autoFocus variant="contained">
-            {t('search.clearConfirmButton')}
-          </Button>
-        </DialogActions>
-      </Dialog>
     </ThemeProvider>
   );
 };

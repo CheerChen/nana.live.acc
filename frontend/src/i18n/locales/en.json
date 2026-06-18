@@ -18,7 +18,7 @@
     "deselectAll": "Deselect All",
     "groupSelect": "Group Select",
     "showCount": "performances",
-    "selectedCount": "{{count}} performances selected",
+    "selectedCount": "performances selected",
     "noShows": "No performance data available"
   },
   "search": {
@@ -36,8 +36,8 @@
     "reverse": "Calculate Misses",
     "resultTitle": "Songs Heard",
     "reverseResultTitle": "Songs Missed",
-    "completionRate": "Completion Rate",
-    "incompletionRate": "Miss Rate",
+    "completionRate": "Full Catalog Coverage",
+    "incompletionRate": "Full Catalog Miss Rate",
     "subtitle": "Songs performed in the selected shows, sorted by play count",
     "reverseSubtitle": "Songs never performed in the selected shows, sorted by historical play rate",
     "completionDescription": "Share of songs heard out of the full catalog",

@@ -47,6 +47,14 @@ REGION_SUFFIX = re.compile(
 # any non-whitespace chunk ending in (...). Tail-anchored.
 TRAILING_PAREN_TOKEN = re.compile(r"\s\S+\([^)]+\)\s*$")
 
+CANONICAL_TOUR_NAMES = {
+    "NANA MIZUKI LIVE SENSATION 2003 -Hall": "NANA MIZUKI LIVE SENSATION 2003",
+    "NANA MIZUKI LIVE SENSATION 2003 -Zepp": "NANA MIZUKI LIVE SENSATION 2003",
+    "NANA MIZUKI LIVE CIRCUS 2013+": "NANA MIZUKI LIVE CIRCUS 2013",
+    "NANA MIZUKI LIVE ADVENTURE 2015 TREASURE": "NANA MIZUKI LIVE ADVENTURE 2015",
+    "NANA MIZUKI LIVE ISLAND 2018 +": "NANA MIZUKI LIVE ISLAND 2018",
+}
+
 
 def derive_tour_name(performance_name: str) -> str:
     """Best-effort derivation. May be wrong for unusual naming — that's why
@@ -55,17 +63,20 @@ def derive_tour_name(performance_name: str) -> str:
     if m and m.start() > 0:
         last_space = performance_name.rfind(" ", 0, m.start())
         if last_space > 0:
-            return performance_name[:last_space].strip()
+            derived = performance_name[:last_space].strip()
+            return CANONICAL_TOUR_NAMES.get(derived, derived)
 
     m2 = TRAILING_PAREN_TOKEN.search(performance_name)
     if m2:
-        return performance_name[: m2.start()].strip()
+        derived = performance_name[: m2.start()].strip()
+        return CANONICAL_TOUR_NAMES.get(derived, derived)
 
     m3 = REGION_SUFFIX.search(performance_name)
     if m3:
-        return performance_name[: m3.start()].strip()
+        derived = performance_name[: m3.start()].strip()
+        return CANONICAL_TOUR_NAMES.get(derived, derived)
 
-    return performance_name
+    return CANONICAL_TOUR_NAMES.get(performance_name, performance_name)
 
 
 def slugify(name: str) -> str:
