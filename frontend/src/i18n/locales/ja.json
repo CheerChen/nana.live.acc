@@ -1,7 +1,9 @@
 {
   "app": {
-    "title": "",
-    "subtitle": ""
+    "brand": "NANA LIVE ACC.",
+    "title": "NANA MIZUKI LIVE ACCOMPLISHMENT",
+    "subtitle": "水樹奈々 ライブセットリスト達成率分析",
+    "tagline": "Setlist Tracker"
   },
   "modes": {
     "search": "検索モード",
@@ -28,23 +30,23 @@
     "clearConfirmButton": "クリアする"
   },
   "analysis": {
-    "button": "達成率計算",
+    "button": "達成率を計算",
     "loading": "分析中...",
-    "reverse": "MISS率計算",
+    "reverse": "MISS率を計算",
     "resultTitle": "達成楽曲",
-    "reverseResultTitle": "MISS楽曲",
+    "reverseResultTitle": "未達成楽曲",
     "completionRate": "達成率",
     "incompletionRate": "MISS率",
-    "subtitle": "選択した公演で演奏された楽曲を出現回数順で表示",
-    "reverseSubtitle": "選択した公演で一度も演奏されなかった楽曲を過去の選出率順で表示",
-    "completionDescription": "達成楽曲が全楽曲に占める割合",
-    "incompletionDescription": "MISS楽曲が全楽曲に占める割合",
+    "subtitle": "選択した公演で達成された楽曲を、披露回数の多い順に表示",
+    "reverseSubtitle": "選択した公演で一度も達成されなかった楽曲を、過去の達成率順に表示",
+    "completionDescription": "達成された楽曲が全楽曲に占める割合",
+    "incompletionDescription": "未達成楽曲が全楽曲に占める割合",
     "songCount": "曲"
   },
   "table": {
     "songName": "楽曲名",
-    "hitCount": "回数",
-    "totalAppearances": "全公演回数",
+    "hitCount": "選出回数",
+    "totalAppearances": "歌唱回数",
     "selectionRate": "選出率",
     "latestPerformance": "直前歌唱公演",
     "latestVenue": "会場"

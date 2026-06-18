@@ -1,77 +1,72 @@
 import React from 'react';
-import { 
-  IconButton, 
-  Menu, 
-  MenuItem, 
-  ListItemIcon, 
-  ListItemText,
-  Tooltip
-} from '@mui/material';
-import { Language } from '@mui/icons-material';
+import { Box } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 
+const MAGENTA = '#E5004F';
+
 const languages = [
-  { code: 'zh', name: '中文', flag: '🇨🇳' },
-  { code: 'ja', name: '日本語', flag: '🇯🇵' },
-  { code: 'en', name: 'English', flag: '🇺🇸' }
+  { code: 'ja', label: 'JA' },
+  { code: 'en', label: 'EN' },
+  { code: 'zh', label: '中' },
 ];
 
 const LanguageSwitcher: React.FC = () => {
-  const { i18n, t } = useTranslation();
-  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
-  const open = Boolean(anchorEl);
-
-  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleLanguageChange = (languageCode: string) => {
-    i18n.changeLanguage(languageCode);
-    handleClose();
-  };
+  const { i18n } = useTranslation();
+  const current = i18n.language?.slice(0, 2) || 'en';
 
   return (
-    <>
-      <Tooltip title={t('settings.language')}>
-        <IconButton
-          onClick={handleClick}
-          color="inherit"
-          aria-label="language"
-        >
-          <Language />
-        </IconButton>
-      </Tooltip>
-      <Menu
-        anchorEl={anchorEl}
-        open={open}
-        onClose={handleClose}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-      >
-        {languages.map((language) => (
-          <MenuItem
-            key={language.code}
-            onClick={() => handleLanguageChange(language.code)}
-            selected={language.code === i18n.language}
-          >
-            <ListItemIcon>
-              <span style={{ fontSize: '1.2em' }}>{language.flag}</span>
-            </ListItemIcon>
-            <ListItemText primary={language.name} />
-          </MenuItem>
-        ))}
-      </Menu>
-    </>
+    <Box
+      role="group"
+      aria-label="language"
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.25,
+        fontSize: 12,
+        letterSpacing: '0.16em',
+        fontWeight: 600,
+      }}
+    >
+      {languages.map((lang, idx) => {
+        const active = current === lang.code;
+        return (
+          <React.Fragment key={lang.code}>
+            {idx > 0 && (
+              <Box
+                aria-hidden
+                sx={{
+                  width: '1px',
+                  height: 10,
+                  backgroundColor: 'divider',
+                }}
+              />
+            )}
+            <Box
+              component="button"
+              type="button"
+              onClick={() => i18n.changeLanguage(lang.code)}
+              aria-pressed={active}
+              sx={{
+                appearance: 'none',
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                fontSize: 'inherit',
+                fontWeight: 'inherit',
+                letterSpacing: 'inherit',
+                color: active ? MAGENTA : 'text.secondary',
+                transition: 'color 120ms ease',
+                '&:hover': { color: active ? MAGENTA : 'text.primary' },
+              }}
+            >
+              {lang.label}
+            </Box>
+          </React.Fragment>
+        );
+      })}
+    </Box>
   );
 };
 

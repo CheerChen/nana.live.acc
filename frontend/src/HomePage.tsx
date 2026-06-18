@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Container,
   Box,
@@ -6,15 +6,9 @@ import {
   Button,
   Chip,
   Typography,
-  Paper,
   Autocomplete,
   CircularProgress,
   Alert,
-  Switch,
-  FormControlLabel,
-  createTheme,
-  ThemeProvider,
-  CssBaseline,
   AppBar,
   Toolbar,
   Snackbar,
@@ -23,31 +17,30 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
-  Checkbox,
-  Collapse,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Divider,
-  ToggleButton,
-  ToggleButtonGroup
+  IconButton,
+  Tooltip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TableSortLabel,
+  createTheme,
+  ThemeProvider,
+  CssBaseline,
+  GlobalStyles,
+  useMediaQuery,
 } from '@mui/material';
-import { 
-  Search as SearchIcon, 
-  Close as CloseIcon, 
+import {
+  Search as SearchIcon,
+  Close as CloseIcon,
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
   ClearAll as ClearAllIcon,
   SearchOff as SearchOffIcon,
-  CheckBox as CheckBoxIcon,
-  ExpandLess as ExpandLessIcon,
-  ExpandMore as ExpandMoreIcon,
-  SelectAll as SelectAllIcon,
-  DeselectOutlined as DeselectOutlinedIcon
+  Check as CheckIcon,
 } from '@mui/icons-material';
-import { DataGrid, GridColDef, GridSortModel } from '@mui/x-data-grid';
 import { useTranslation } from 'react-i18next';
 import { staticDataService, LiveShow, SongAnalysis } from './services/staticDataService';
 import LanguageSwitcher from './components/LanguageSwitcher';
@@ -67,16 +60,19 @@ interface ShowGroup {
   shows: LiveShow[];
 }
 
-// 本地存储相关常量和函数
+type AppMode = 'search' | 'multiSelect';
+type SortKey = 'hit_count' | 'total_appearances' | 'selection_rate' | 'song_name';
+type SortDir = 'asc' | 'desc';
+
 const STORAGE_KEY = 'nana-selected-shows';
 const MODE_STORAGE_KEY = 'nana-app-mode';
+const THEME_STORAGE_KEY = 'nana-theme-mode';
 const EXPIRY_DAYS = 7;
 
+const MAGENTA = '#E5004F';
+
 const saveSelectedShows = (shows: SearchTag[]) => {
-  const data: SavedShows = {
-    shows,
-    timestamp: Date.now()
-  };
+  const data: SavedShows = { shows, timestamp: Date.now() };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 };
 
@@ -84,15 +80,15 @@ const loadSelectedShows = (): { shows: SearchTag[]; isRestored: boolean } => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (!saved) return { shows: [], isRestored: false };
-    
+
     const data: SavedShows = JSON.parse(saved);
     const isExpired = Date.now() - data.timestamp > EXPIRY_DAYS * 24 * 60 * 60 * 1000;
-    
+
     if (isExpired) {
       localStorage.removeItem(STORAGE_KEY);
       return { shows: [], isRestored: false };
     }
-    
+
     return { shows: data.shows, isRestored: data.shows.length > 0 };
   } catch (error) {
     console.error('Failed to load saved shows:', error);
@@ -100,77 +96,77 @@ const loadSelectedShows = (): { shows: SearchTag[]; isRestored: boolean } => {
   }
 };
 
-const clearSavedShows = () => {
-  localStorage.removeItem(STORAGE_KEY);
+const clearSavedShows = () => localStorage.removeItem(STORAGE_KEY);
+
+const saveAppMode = (mode: AppMode) => localStorage.setItem(MODE_STORAGE_KEY, mode);
+
+const loadAppMode = (): AppMode => {
+  const saved = localStorage.getItem(MODE_STORAGE_KEY);
+  return saved === 'multiSelect' ? 'multiSelect' : 'search';
 };
 
-const saveAppMode = (mode: 'search' | 'multiSelect') => {
-  localStorage.setItem(MODE_STORAGE_KEY, mode);
+const loadThemeMode = (): boolean => {
+  const saved = localStorage.getItem(THEME_STORAGE_KEY);
+  if (saved === 'light') return false;
+  if (saved === 'dark') return true;
+  // Default: light, matching the editorial reference design
+  return false;
 };
 
-const loadAppMode = (): 'search' | 'multiSelect' => {
-  try {
-    const saved = localStorage.getItem(MODE_STORAGE_KEY);
-    return (saved === 'multiSelect') ? 'multiSelect' : 'search';
-  } catch (error) {
-    console.error('Failed to load app mode:', error);
-    return 'search';
-  }
+const saveThemeMode = (dark: boolean) => {
+  localStorage.setItem(THEME_STORAGE_KEY, dark ? 'dark' : 'light');
 };
+
+const formatDate = (iso: string) => iso.replace(/-/g, '.');
+const yearOf = (iso: string) => iso.slice(0, 4);
 
 const HomePage: React.FC = () => {
   const { t } = useTranslation();
-  
-  // 状态定义
+
   const [availableShows, setAvailableShows] = useState<LiveShow[]>([]);
   const [songAnalysis, setSongAnalysis] = useState<SongAnalysis[]>([]);
   const [completionRate, setCompletionRate] = useState<number>(0);
+  const [totalSongs, setTotalSongs] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [darkMode, setDarkMode] = useState<boolean>(true); // 默认黑暗模式
-  
-  // 模式状态
-  const [appMode, setAppMode] = useState<'search' | 'multiSelect'>('search');
-  
-  // 自动完成相关状态
+  const [darkMode, setDarkMode] = useState<boolean>(loadThemeMode);
+
+  const [appMode, setAppMode] = useState<AppMode>('search');
+
   const [searchText, setSearchText] = useState<string>('');
   const [selectedShows, setSelectedShows] = useState<SearchTag[]>([]);
   const [autoCompleteLoading, setAutoCompleteLoading] = useState<boolean>(false);
-  
-  // 多选模式相关状态
+
   const [groupedShows, setGroupedShows] = useState<ShowGroup[]>([]);
   const [multiSelectLoading, setMultiSelectLoading] = useState<boolean>(false);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [selectedShowIds, setSelectedShowIds] = useState<Set<number>>(new Set());
-  
-  // 恢复状态相关
+  const [groupFilter, setGroupFilter] = useState<string>('');
+
   const [showRestoredMessage, setShowRestoredMessage] = useState<boolean>(false);
   const [hasAnalyzed, setHasAnalyzed] = useState<boolean>(false);
   const [isReverseAnalysis, setIsReverseAnalysis] = useState<boolean>(false);
-  
-  // 确认对话框状态
+
   const [showClearConfirm, setShowClearConfirm] = useState<boolean>(false);
 
-  // 初始化时加载保存的选择和模式
+  const [sortKey, setSortKey] = useState<SortKey>('hit_count');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  const resultRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     const { shows, isRestored } = loadSelectedShows();
     const savedMode = loadAppMode();
-    
     if (isRestored) {
       setSelectedShows(shows);
       setShowRestoredMessage(true);
-      // 同步到多选模式的状态
-      setSelectedShowIds(new Set(shows.map(s => s.id)));
+      setSelectedShowIds(new Set(shows.map((s) => s.id)));
     }
-    
     setAppMode(savedMode);
   }, []);
 
-  // 加载分组的演出数据
   const loadGroupedShows = useCallback(async () => {
     setMultiSelectLoading(true);
     try {
-      // 使用原始的分组算法
       const groups = await staticDataService.getGroupedShows();
       setGroupedShows(groups);
     } catch (err) {
@@ -181,193 +177,155 @@ const HomePage: React.FC = () => {
     }
   }, [t]);
 
-  // 当模式改变时加载相应数据
   useEffect(() => {
-    if (appMode === 'multiSelect') {
+    if (appMode === 'multiSelect' && groupedShows.length === 0) {
       loadGroupedShows();
     }
-  }, [appMode, loadGroupedShows]);
+  }, [appMode, groupedShows.length, loadGroupedShows]);
 
-  // 创建主题
-  const theme = createTheme({
-    palette: {
-      mode: darkMode ? 'dark' : 'light',
-      primary: {
-        main: darkMode ? '#90caf9' : '#1976d2',
-      },
-      secondary: {
-        main: darkMode ? '#f48fb1' : '#dc004e',
-      },
-      background: {
-        default: darkMode ? '#0a0a0a' : '#fafafa',
-        paper: darkMode ? '#1a1a1a' : '#ffffff',
-      },
-    },
-    typography: {
-      fontFamily: [
-        'Inter',
-        'Noto Sans SC',
-        '-apple-system',
-        'BlinkMacSystemFont',
-        '"Segoe UI"',
-        'Roboto',
-        '"Helvetica Neue"',
-        'Arial',
-        'sans-serif',
-        '"Apple Color Emoji"',
-        '"Segoe UI Emoji"',
-        '"Segoe UI Symbol"',
-      ].join(','),
-      h4: {
-        fontWeight: 600,
-      },
-      h5: {
-        fontWeight: 600,
-      },
-      h6: {
-        fontWeight: 500,
-      },
-    },
-  });
+  const theme = useMemo(
+    () =>
+      createTheme({
+        palette: {
+          mode: darkMode ? 'dark' : 'light',
+          primary: { main: MAGENTA, contrastText: '#FFFFFF' },
+          secondary: { main: darkMode ? '#F5F5F5' : '#111111' },
+          background: {
+            default: darkMode ? '#0E0E10' : '#FAFAFA',
+            paper: darkMode ? '#16161A' : '#FFFFFF',
+          },
+          text: {
+            primary: darkMode ? '#F5F5F5' : '#111111',
+            secondary: darkMode ? 'rgba(255,255,255,0.62)' : 'rgba(17,17,17,0.6)',
+          },
+          divider: darkMode ? 'rgba(255,255,255,0.09)' : 'rgba(17,17,17,0.09)',
+        },
+        shape: { borderRadius: 4 },
+        typography: {
+          fontFamily: [
+            'Inter',
+            '"Noto Sans JP"',
+            '"Noto Sans SC"',
+            '-apple-system',
+            'BlinkMacSystemFont',
+            'system-ui',
+            'sans-serif',
+          ].join(','),
+          h1: { fontFamily: '"Shippori Mincho", "Noto Serif JP", serif', fontWeight: 600, letterSpacing: '-0.01em' },
+          h2: { fontFamily: '"Shippori Mincho", "Noto Serif JP", serif', fontWeight: 600, letterSpacing: '-0.01em' },
+          h3: { fontFamily: '"Shippori Mincho", "Noto Serif JP", serif', fontWeight: 600, letterSpacing: '-0.01em' },
+          h4: { fontFamily: '"Shippori Mincho", "Noto Serif JP", serif', fontWeight: 600 },
+          h5: { fontFamily: '"Shippori Mincho", "Noto Serif JP", serif', fontWeight: 600 },
+          overline: { letterSpacing: '0.22em', fontWeight: 600, fontSize: 11 },
+        },
+        components: {
+          MuiPaper: { defaultProps: { elevation: 0 }, styleOverrides: { root: { backgroundImage: 'none' } } },
+          MuiAppBar: { defaultProps: { elevation: 0, color: 'transparent' } },
+          MuiButton: {
+            defaultProps: { disableElevation: true },
+            styleOverrides: {
+              root: { textTransform: 'none', borderRadius: 4, fontWeight: 500, letterSpacing: '0.02em' },
+              sizeLarge: { paddingTop: 10, paddingBottom: 10 },
+            },
+          },
+          MuiChip: { styleOverrides: { root: { borderRadius: 4, fontWeight: 500 } } },
+          MuiOutlinedInput: {
+            styleOverrides: {
+              root: {
+                borderRadius: 4,
+              },
+            },
+          },
+        },
+      }),
+    [darkMode],
+  );
 
-  // 切换模式
-  const handleModeChange = (mode: 'search' | 'multiSelect') => {
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  const handleModeChange = (mode: AppMode) => {
     setAppMode(mode);
     saveAppMode(mode);
-    
-    // 清空当前的错误信息
     setError(null);
-    
-    // 如果切换到多选模式，同步已选择的演出
     if (mode === 'multiSelect') {
-      setSelectedShowIds(new Set(selectedShows.map(s => s.id)));
+      setSelectedShowIds(new Set(selectedShows.map((s) => s.id)));
     } else {
-      // 如果切换到搜索模式，同步多选的结果到搜索模式
       syncMultiSelectToSearch();
     }
   };
 
-  // 同步多选模式的选择到搜索模式
   const syncMultiSelectToSearch = () => {
-    const selectedShows: SearchTag[] = [];
-    groupedShows.forEach(group => {
-      group.shows.forEach(show => {
+    const next: SearchTag[] = [];
+    groupedShows.forEach((group) => {
+      group.shows.forEach((show) => {
         if (selectedShowIds.has(show.id)) {
-          selectedShows.push({
-            id: show.id,
-            label: show.performance_name
-          });
+          next.push({ id: show.id, label: show.performance_name });
         }
       });
     });
-    setSelectedShows(selectedShows);
+    setSelectedShows(next);
   };
 
-  // 切换分组展开/收起
-  const toggleGroupExpanded = (groupName: string) => {
-    const newExpanded = new Set(expandedGroups);
-    if (newExpanded.has(groupName)) {
-      newExpanded.delete(groupName);
-    } else {
-      newExpanded.add(groupName);
-    }
-    setExpandedGroups(newExpanded);
-  };
-
-  // 处理单个演出的选择
   const handleShowSelect = (showId: number, checked: boolean) => {
     const newSelected = new Set(selectedShowIds);
-    if (checked) {
-      newSelected.add(showId);
-    } else {
-      newSelected.delete(showId);
-    }
+    if (checked) newSelected.add(showId);
+    else newSelected.delete(showId);
     setSelectedShowIds(newSelected);
   };
 
-  // 处理分组的选择
   const handleGroupSelect = (group: ShowGroup, checked: boolean) => {
     const newSelected = new Set(selectedShowIds);
-    group.shows.forEach(show => {
-      if (checked) {
-        newSelected.add(show.id);
-      } else {
-        newSelected.delete(show.id);
-      }
+    group.shows.forEach((show) => {
+      if (checked) newSelected.add(show.id);
+      else newSelected.delete(show.id);
     });
     setSelectedShowIds(newSelected);
   };
 
-  // 全选/取消全选
   const handleSelectAll = (selectAll: boolean) => {
     if (selectAll) {
-      const allShowIds = new Set<number>();
-      groupedShows.forEach(group => {
-        group.shows.forEach(show => {
-          allShowIds.add(show.id);
-        });
-      });
-      setSelectedShowIds(allShowIds);
+      const all = new Set<number>();
+      groupedShows.forEach((g) => g.shows.forEach((s) => all.add(s.id)));
+      setSelectedShowIds(all);
     } else {
       setSelectedShowIds(new Set());
     }
   };
 
-  // 获取演出列表（自动完成用）
-  const fetchShows = useCallback(
-    async (query: string) => {
-      if (!query.trim()) {
-        setAvailableShows([]);
-        return;
-      }
+  const fetchShows = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setAvailableShows([]);
+      return;
+    }
+    setAutoCompleteLoading(true);
+    try {
+      const shows = await staticDataService.searchShows(query);
+      setAvailableShows(shows);
+    } catch (err) {
+      console.error('Failed to fetch shows:', err);
+    } finally {
+      setAutoCompleteLoading(false);
+    }
+  }, []);
 
-      setAutoCompleteLoading(true);
-      try {
-        const shows = await staticDataService.searchShows(query);
-        setAvailableShows(shows);
-      } catch (err) {
-        console.error('Failed to fetch shows:', err);
-      } finally {
-        setAutoCompleteLoading(false);
-      }
-    },
-    []
-  );
-
-  // 防抖搜索
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      fetchShows(searchText);
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
+    const timer = setTimeout(() => fetchShows(searchText), 300);
+    return () => clearTimeout(timer);
   }, [searchText, fetchShows]);
 
-  // 添加演出标签
   const handleAddShow = (show: LiveShow | null) => {
-    if (show && !selectedShows.find(s => s.id === show.id)) {
-      setSelectedShows(prev => [...prev, {
-        id: show.id,
-        label: show.performance_name
-      }]);
-      // 清空搜索框，方便下一次输入
+    if (show && !selectedShows.find((s) => s.id === show.id)) {
+      setSelectedShows((prev) => [...prev, { id: show.id, label: show.performance_name }]);
       setSearchText('');
     }
   };
 
-  // 移除演出标签
-  const handleRemoveShow = (showId: number) => {
-    setSelectedShows(prev => prev.filter(s => s.id !== showId));
-  };
+  const handleRemoveShow = (showId: number) =>
+    setSelectedShows((prev) => prev.filter((s) => s.id !== showId));
 
-  // 显示清除确认对话框
-  const handleClearAllClick = () => {
-    setShowClearConfirm(true);
-  };
-
-  // 确认清除所有选择
   const handleClearAllConfirm = () => {
     setSelectedShows([]);
+    setSelectedShowIds(new Set());
     clearSavedShows();
     setSongAnalysis([]);
     setCompletionRate(0);
@@ -376,648 +334,1004 @@ const HomePage: React.FC = () => {
     setShowClearConfirm(false);
   };
 
-  // 取消清除
-  const handleClearAllCancel = () => {
-    setShowClearConfirm(false);
-  };
-
-  // 执行分析
-  const handleAnalyze = async () => {
-    const showIds = appMode === 'multiSelect' 
-      ? Array.from(selectedShowIds)
-      : selectedShows.map(s => s.id);
-      
+  const runAnalyze = async (reverse: boolean) => {
+    const showIds =
+      appMode === 'multiSelect' ? Array.from(selectedShowIds) : selectedShows.map((s) => s.id);
     if (showIds.length === 0) {
       setError(t('errors.noShows'));
       return;
     }
-
     setLoading(true);
     setError(null);
-    setIsReverseAnalysis(false);
-
-    // 重置排序为按次数降序
-    setSortModel([{
-      field: 'hit_count',
-      sort: 'desc'
-    }]);
+    setIsReverseAnalysis(reverse);
+    setSortKey(reverse ? 'selection_rate' : 'hit_count');
+    setSortDir('desc');
 
     try {
-      const result = await staticDataService.analyzeSongs(showIds);
+      const result = reverse
+        ? await staticDataService.analyzeReverseSongs(showIds)
+        : await staticDataService.analyzeSongs(showIds);
 
       setSongAnalysis(result.songs);
       setCompletionRate(result.completion_rate);
+      setTotalSongs(result.total_songs);
       setHasAnalyzed(true);
-      
-      // 在多选模式下同步选择到搜索模式
+
       if (appMode === 'multiSelect') {
-        syncMultiSelectToSearch();
+        const synced: SearchTag[] = [];
+        groupedShows.forEach((g) =>
+          g.shows.forEach((s) => {
+            if (selectedShowIds.has(s.id)) synced.push({ id: s.id, label: s.performance_name });
+          }),
+        );
+        setSelectedShows(synced);
+        saveSelectedShows(synced);
+      } else {
+        saveSelectedShows(selectedShows);
       }
-      
-      // 只在分析成功后保存选择
-      saveSelectedShows(appMode === 'multiSelect' ? Array.from(selectedShowIds).map(id => {
-        const show = groupedShows.flatMap(g => g.shows).find(s => s.id === id);
-        return show ? { id: show.id, label: show.performance_name } : { id, label: 'Unknown' };
-      }) : selectedShows);
+
+      // Scroll to the result after rendering completes
+      requestAnimationFrame(() => {
+        resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     } catch (err) {
-      setError(t('errors.analysisFailed'));
+      setError(t(reverse ? 'errors.reverseAnalysisFailed' : 'errors.analysisFailed'));
       console.error('Analysis failed:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // 执行反向分析
-  const handleReverseAnalyze = async () => {
-    const showIds = appMode === 'multiSelect' 
-      ? Array.from(selectedShowIds)
-      : selectedShows.map(s => s.id);
-      
-    if (showIds.length === 0) {
-      setError(t('errors.noShows'));
-      return;
-    }
+  const selectedCount =
+    appMode === 'multiSelect' ? selectedShowIds.size : selectedShows.length;
 
-    setLoading(true);
-    setError(null);
-    setIsReverseAnalysis(true);
+  const filteredGroups = useMemo(() => {
+    if (!groupFilter.trim()) return groupedShows;
+    const q = groupFilter.toLowerCase();
+    return groupedShows
+      .map((g) => ({
+        groupName: g.groupName,
+        shows: g.shows.filter(
+          (s) =>
+            s.performance_name.toLowerCase().includes(q) ||
+            s.venue.toLowerCase().includes(q) ||
+            g.groupName.toLowerCase().includes(q),
+        ),
+      }))
+      .filter((g) => g.shows.length > 0);
+  }, [groupedShows, groupFilter]);
 
-    // 重置排序为按选出率降序
-    setSortModel([{
-      field: 'selection_rate',
-      sort: 'desc'
-    }]);
-
-    try {
-      const result = await staticDataService.analyzeReverseSongs(showIds);
-
-      setSongAnalysis(result.songs);
-      setCompletionRate(result.completion_rate);
-      setHasAnalyzed(true);
-      
-      // 在多选模式下同步选择到搜索模式
-      if (appMode === 'multiSelect') {
-        syncMultiSelectToSearch();
+  const sortedSongs = useMemo(() => {
+    const copy = [...songAnalysis];
+    copy.sort((a, b) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      if (typeof av === 'number' && typeof bv === 'number') {
+        return sortDir === 'asc' ? av - bv : bv - av;
       }
-      
-      // 只在分析成功后保存选择
-      saveSelectedShows(appMode === 'multiSelect' ? Array.from(selectedShowIds).map(id => {
-        const show = groupedShows.flatMap(g => g.shows).find(s => s.id === id);
-        return show ? { id: show.id, label: show.performance_name } : { id, label: 'Unknown' };
-      }) : selectedShows);
-    } catch (err) {
-      setError(t('errors.reverseAnalysisFailed'));
-      console.error('Reverse analysis failed:', err);
-    } finally {
-      setLoading(false);
+      return sortDir === 'asc'
+        ? String(av).localeCompare(String(bv))
+        : String(bv).localeCompare(String(av));
+    });
+    return copy;
+  }, [songAnalysis, sortKey, sortDir]);
+
+  const maxHit = useMemo(
+    () => sortedSongs.reduce((m, s) => Math.max(m, s.hit_count || 0), 0),
+    [sortedSongs],
+  );
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else {
+      setSortKey(key);
+      setSortDir(key === 'song_name' ? 'asc' : 'desc');
     }
   };
 
-  // 数据表格列定义
-  const columns: GridColDef[] = [
-    {
-      field: 'id',
-      headerName: 'ID',
-      width: 60,
-      type: 'number'
-    },
-    {
-      field: 'song_name',
-      headerName: t('table.songName'),
-      width: 250,
-      minWidth: 200
-    },
-    {
-      field: 'hit_count',
-      headerName: t('table.hitCount'),
-      width: 80,
-      type: 'number',
-      sortable: true
-    },
-    {
-      field: 'total_appearances',
-      headerName: t('table.totalAppearances'),
-      width: 100,
-      type: 'number',
-      sortable: true
-    },
-    {
-      field: 'selection_rate',
-      headerName: t('table.selectionRate'),
-      width: 100,
-      type: 'number',
-      renderCell: (params: any) => {
-        const rate = params.value || params.row?.selection_rate;
-        
-        if (rate == null || isNaN(Number(rate))) {
-          return '0.0%';
-        }
-        const percentage = (Number(rate) * 100).toFixed(1);
-        return `${percentage}%`;
-      },
-      sortable: true
-    },
-    {
-      field: 'latest_performance',
-      headerName: t('table.latestPerformance'),
-      width: 400,
-      minWidth: 300,
-      flex: 1
-    },
-    {
-      field: 'latest_venue',
-      headerName: t('table.latestVenue'),
-      width: 150,
-      minWidth: 120
-    }
-  ];
+  const globalStyles = (
+    <GlobalStyles
+      styles={{
+        body: {
+          fontFeatureSettings: '"palt"',
+          WebkitFontSmoothing: 'antialiased',
+        },
+        '::selection': {
+          backgroundColor: MAGENTA,
+          color: '#fff',
+        },
+      }}
+    />
+  );
 
-  // 默认排序设置
-  const [sortModel, setSortModel] = useState<GridSortModel>([
-    {
-      field: 'hit_count',
-      sort: 'desc'
-    }
-  ]);
+  // ── render: header ─────────────────────────────────────────────
+  const renderHeader = () => (
+    <AppBar
+      position="sticky"
+      sx={{
+        backdropFilter: 'saturate(180%) blur(12px)',
+        backgroundColor: darkMode ? 'rgba(14,14,16,0.78)' : 'rgba(255,255,255,0.78)',
+        borderBottom: '1px solid',
+        borderColor: 'divider',
+      }}
+    >
+      <Toolbar sx={{ minHeight: 64, gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5, flexGrow: 1 }}>
+          <Box
+            component="span"
+            sx={{
+              width: 6,
+              height: 6,
+              borderRadius: 0,
+              backgroundColor: MAGENTA,
+              alignSelf: 'center',
+              display: 'inline-block',
+            }}
+          />
+          <Typography
+            variant="body1"
+            sx={{
+              fontWeight: 700,
+              letterSpacing: '0.18em',
+              fontSize: 13,
+            }}
+          >
+            {t('app.brand')}
+          </Typography>
+          <Typography
+            variant="caption"
+            sx={{
+              color: 'text.secondary',
+              letterSpacing: '0.18em',
+              display: { xs: 'none', sm: 'inline' },
+            }}
+          >
+            / {t('app.tagline')}
+          </Typography>
+        </Box>
+
+        <LanguageSwitcher />
+
+        <Tooltip title={t('settings.darkMode')}>
+          <IconButton
+            onClick={() => {
+              const next = !darkMode;
+              setDarkMode(next);
+              saveThemeMode(next);
+            }}
+            color="inherit"
+            size="small"
+          >
+            {darkMode ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
+          </IconButton>
+        </Tooltip>
+      </Toolbar>
+    </AppBar>
+  );
+
+  // ── render: hero ──────────────────────────────────────────────
+  const renderHero = () => (
+    <Box
+      sx={{
+        py: { xs: 6, md: 10 },
+        borderBottom: '1px solid',
+        borderColor: 'divider',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      <Container maxWidth="lg">
+        <Box sx={{ maxWidth: 760 }}>
+          <Typography
+            variant="overline"
+            sx={{
+              color: MAGENTA,
+              display: 'block',
+              mb: 2,
+            }}
+          >
+            ◆ {t('app.tagline')}
+          </Typography>
+          <Typography
+            component="h1"
+            sx={{
+              fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+              fontWeight: 600,
+              fontSize: { xs: 32, sm: 44, md: 56 },
+              lineHeight: 1.15,
+              mb: 3,
+              letterSpacing: '-0.01em',
+            }}
+          >
+            {t('app.title')}
+          </Typography>
+          <Typography
+            variant="body1"
+            sx={{
+              color: 'text.secondary',
+              fontSize: { xs: 14, md: 16 },
+              maxWidth: 560,
+              lineHeight: 1.7,
+            }}
+          >
+            {t('app.subtitle')}
+          </Typography>
+        </Box>
+      </Container>
+      <Box
+        aria-hidden
+        sx={{
+          position: 'absolute',
+          right: -80,
+          top: 0,
+          bottom: 0,
+          width: 360,
+          background: `linear-gradient(135deg, ${MAGENTA}11, transparent 60%)`,
+          pointerEvents: 'none',
+          display: { xs: 'none', md: 'block' },
+        }}
+      />
+    </Box>
+  );
+
+  // ── render: mode tabs ─────────────────────────────────────────
+  const renderModeTabs = () => (
+    <Box
+      sx={{
+        borderBottom: '1px solid',
+        borderColor: 'divider',
+        position: 'sticky',
+        top: 64,
+        zIndex: 1,
+        backdropFilter: 'saturate(180%) blur(12px)',
+        backgroundColor: darkMode ? 'rgba(14,14,16,0.78)' : 'rgba(255,255,255,0.78)',
+      }}
+    >
+      <Container maxWidth="lg">
+        <Box sx={{ display: 'flex', gap: 4 }}>
+          {(['search', 'multiSelect'] as AppMode[]).map((mode) => {
+            const active = appMode === mode;
+            return (
+              <Box
+                key={mode}
+                onClick={() => handleModeChange(mode)}
+                sx={{
+                  position: 'relative',
+                  py: 2,
+                  cursor: 'pointer',
+                  color: active ? 'text.primary' : 'text.secondary',
+                  fontSize: 13,
+                  fontWeight: active ? 600 : 500,
+                  letterSpacing: '0.04em',
+                  transition: 'color 120ms ease',
+                  '&:hover': { color: 'text.primary' },
+                  '&::after': active
+                    ? {
+                        content: '""',
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        bottom: -1,
+                        height: 2,
+                        backgroundColor: MAGENTA,
+                      }
+                    : undefined,
+                }}
+              >
+                {t(`modes.${mode}`)}
+              </Box>
+            );
+          })}
+        </Box>
+      </Container>
+    </Box>
+  );
+
+  // ── render: floating bottom action bar ────────────────────────
+  // Renders only when at least one show is selected. Sits fixed above the
+  // viewport bottom so users don't have to scroll past dozens of cards to
+  // hit "Calculate".
+  const renderFloatingActionBar = () => {
+    if (selectedCount === 0) return null;
+    return (
+      <Box
+        sx={{
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 3,
+          borderTop: '1px solid',
+          borderColor: 'divider',
+          backdropFilter: 'saturate(180%) blur(14px)',
+          backgroundColor: darkMode ? 'rgba(14,14,16,0.86)' : 'rgba(255,255,255,0.88)',
+          animation: 'nana-fab-in 220ms ease-out',
+          '@keyframes nana-fab-in': {
+            from: { transform: 'translateY(100%)', opacity: 0 },
+            to: { transform: 'translateY(0)', opacity: 1 },
+          },
+        }}
+      >
+        <Container
+          maxWidth="lg"
+          sx={{
+            py: 1.5,
+            display: 'flex',
+            alignItems: 'center',
+            gap: { xs: 1, sm: 2 },
+            flexWrap: 'wrap',
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexGrow: 1, minWidth: 0 }}>
+            <Typography
+              sx={{
+                fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+                fontSize: { xs: 22, sm: 28 },
+                fontWeight: 600,
+                color: MAGENTA,
+                fontFeatureSettings: '"tnum"',
+                lineHeight: 1,
+              }}
+            >
+              {selectedCount}
+            </Typography>
+            <Typography
+              variant="overline"
+              sx={{
+                color: 'text.secondary',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {t('multiSelect.selectedCount', { count: selectedCount })}
+            </Typography>
+          </Box>
+          <Button
+            variant="text"
+            size="small"
+            onClick={() => setShowClearConfirm(true)}
+            startIcon={<ClearAllIcon fontSize="small" />}
+            sx={{ color: 'text.secondary' }}
+          >
+            {t('search.clear')}
+          </Button>
+          <Button
+            variant="outlined"
+            size="medium"
+            onClick={() => runAnalyze(true)}
+            disabled={loading}
+            startIcon={
+              loading && isReverseAnalysis ? (
+                <CircularProgress size={14} color="inherit" />
+              ) : (
+                <SearchOffIcon fontSize="small" />
+              )
+            }
+            sx={{
+              borderColor: 'divider',
+              color: 'text.primary',
+              '&:hover': { borderColor: MAGENTA, color: MAGENTA },
+            }}
+          >
+            {loading && isReverseAnalysis ? t('analysis.loading') : t('analysis.reverse')}
+          </Button>
+          <Button
+            variant="contained"
+            size="medium"
+            onClick={() => runAnalyze(false)}
+            disabled={loading}
+            startIcon={
+              loading && !isReverseAnalysis ? (
+                <CircularProgress size={14} color="inherit" />
+              ) : (
+                <SearchIcon fontSize="small" />
+              )
+            }
+          >
+            {loading && !isReverseAnalysis ? t('analysis.loading') : t('analysis.button')}
+          </Button>
+        </Container>
+      </Box>
+    );
+  };
+
+  // ── render: search panel ──────────────────────────────────────
+  const renderSearchPanel = () => (
+    <Box sx={{ py: 5 }}>
+      <Typography variant="overline" sx={{ color: 'text.secondary', display: 'block', mb: 2 }}>
+        ── {t('modes.search')}
+      </Typography>
+
+      <Autocomplete
+        options={availableShows}
+        getOptionLabel={(option) => option.performance_name}
+        loading={autoCompleteLoading}
+        value={null}
+        inputValue={searchText}
+        onInputChange={(_, v) => setSearchText(v)}
+        onChange={(_, v) => handleAddShow(v)}
+        clearOnBlur
+        clearOnEscape
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            placeholder={t('search.placeholder')}
+            fullWidth
+            variant="outlined"
+            InputProps={{
+              ...params.InputProps,
+              startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} fontSize="small" />,
+              endAdornment: (
+                <>
+                  {autoCompleteLoading ? <CircularProgress color="inherit" size={16} /> : null}
+                  {params.InputProps.endAdornment}
+                </>
+              ),
+              sx: { fontSize: 18, py: 0.5 },
+            }}
+          />
+        )}
+        renderOption={(props, option) => {
+          const { key, ...other } = props as any;
+          return (
+            <Box key={key} {...other} component="li" sx={{ display: 'block !important', py: 1.25 }}>
+              <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
+                {option.performance_name}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontFeatureSettings: '"tnum"' }}>
+                {formatDate(option.date)} · {option.venue}
+              </Typography>
+            </Box>
+          );
+        }}
+        noOptionsText={t('search.noResults')}
+      />
+
+      {selectedShows.length > 0 && (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 3 }}>
+          {selectedShows.map((show) => (
+            <Chip
+              key={show.id}
+              label={show.label}
+              onDelete={() => handleRemoveShow(show.id)}
+              deleteIcon={<CloseIcon fontSize="small" />}
+              variant="outlined"
+              sx={{
+                maxWidth: '100%',
+                borderColor: 'divider',
+                '& .MuiChip-label': {
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  maxWidth: 460,
+                },
+                '&:hover': { borderColor: MAGENTA },
+              }}
+            />
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+
+  // ── render: show card ─────────────────────────────────────────
+  const renderShowCard = (show: LiveShow) => {
+    const selected = selectedShowIds.has(show.id);
+    return (
+      <Box
+        key={show.id}
+        onClick={() => handleShowSelect(show.id, !selected)}
+        sx={{
+          position: 'relative',
+          p: 2.5,
+          cursor: 'pointer',
+          border: '1px solid',
+          borderColor: selected ? MAGENTA : 'divider',
+          backgroundColor: 'background.paper',
+          transition: 'border-color 140ms ease, transform 140ms ease',
+          '&:hover': {
+            borderColor: selected ? MAGENTA : 'text.primary',
+            transform: 'translateY(-1px)',
+          },
+        }}
+      >
+        {selected && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              width: 20,
+              height: 20,
+              borderRadius: '50%',
+              backgroundColor: MAGENTA,
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <CheckIcon sx={{ fontSize: 14 }} />
+          </Box>
+        )}
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 1.25 }}>
+          <Typography
+            variant="caption"
+            sx={{
+              fontFamily: 'Inter, monospace',
+              fontFeatureSettings: '"tnum"',
+              fontWeight: 600,
+              letterSpacing: '0.04em',
+              color: 'text.primary',
+            }}
+          >
+            {formatDate(show.date)}
+          </Typography>
+          <Box sx={{ flexGrow: 1 }} />
+          <Typography
+            variant="caption"
+            sx={{
+              color: MAGENTA,
+              fontWeight: 600,
+              letterSpacing: '0.14em',
+              fontSize: 10,
+            }}
+          >
+            {yearOf(show.date)}
+          </Typography>
+        </Box>
+        <Typography
+          variant="body2"
+          sx={{
+            fontWeight: 600,
+            mb: 1,
+            lineHeight: 1.4,
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
+          {show.performance_name}
+        </Typography>
+        <Typography variant="caption" color="text.secondary" noWrap>
+          {show.venue}
+        </Typography>
+      </Box>
+    );
+  };
+
+  // ── render: multi-select panel ────────────────────────────────
+  const renderMultiSelectPanel = () => (
+    <Box sx={{ py: 5 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 2,
+          mb: 3,
+        }}
+      >
+        <Box>
+          <Typography variant="overline" sx={{ color: 'text.secondary', display: 'block', mb: 0.5 }}>
+            ── {t('multiSelect.title')}
+          </Typography>
+          <Typography
+            sx={{
+              fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+              fontSize: 22,
+              fontWeight: 600,
+            }}
+          >
+            {filteredGroups.reduce((acc, g) => acc + g.shows.length, 0)} {t('multiSelect.showCount')}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+          <TextField
+            size="small"
+            placeholder={t('search.placeholder')}
+            value={groupFilter}
+            onChange={(e) => setGroupFilter(e.target.value)}
+            InputProps={{
+              startAdornment: <SearchIcon sx={{ mr: 0.5, color: 'text.secondary' }} fontSize="small" />,
+            }}
+            sx={{ minWidth: 220 }}
+          />
+          <Button
+            variant="text"
+            size="small"
+            onClick={() => handleSelectAll(true)}
+            sx={{ color: 'text.secondary' }}
+          >
+            {t('multiSelect.selectAll')}
+          </Button>
+          <Button
+            variant="text"
+            size="small"
+            onClick={() => handleSelectAll(false)}
+            sx={{ color: 'text.secondary' }}
+          >
+            {t('multiSelect.deselectAll')}
+          </Button>
+        </Box>
+      </Box>
+
+      {multiSelectLoading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+          <CircularProgress sx={{ color: MAGENTA }} />
+        </Box>
+      )}
+
+      {!multiSelectLoading && filteredGroups.length === 0 && (
+        <Alert severity="info" sx={{ borderRadius: 0 }}>
+          {t('multiSelect.noShows')}
+        </Alert>
+      )}
+
+      {!multiSelectLoading &&
+        filteredGroups.map((group) => {
+          const groupSelectedCount = group.shows.filter((s) => selectedShowIds.has(s.id)).length;
+          const allSelected = groupSelectedCount === group.shows.length;
+          return (
+            <Box key={group.groupName} sx={{ mb: 5 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 2,
+                  pb: 1.5,
+                  mb: 2,
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+                    fontSize: 18,
+                    fontWeight: 600,
+                    flexGrow: 1,
+                    minWidth: 0,
+                  }}
+                  noWrap
+                >
+                  {group.groupName}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: 'text.secondary',
+                    fontFeatureSettings: '"tnum"',
+                    letterSpacing: '0.06em',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {groupSelectedCount} / {group.shows.length}
+                </Typography>
+                <Button
+                  size="small"
+                  variant="text"
+                  onClick={() => handleGroupSelect(group, !allSelected)}
+                  sx={{
+                    color: allSelected ? MAGENTA : 'text.secondary',
+                    fontSize: 11,
+                    letterSpacing: '0.06em',
+                    minWidth: 0,
+                  }}
+                >
+                  {allSelected ? t('multiSelect.deselectAll') : t('multiSelect.selectAll')}
+                </Button>
+              </Box>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: {
+                    xs: '1fr',
+                    sm: 'repeat(2, 1fr)',
+                    md: 'repeat(3, 1fr)',
+                    lg: 'repeat(4, 1fr)',
+                  },
+                  gap: 1.5,
+                }}
+              >
+                {group.shows.map(renderShowCard)}
+              </Box>
+            </Box>
+          );
+        })}
+    </Box>
+  );
+
+  // ── render: result panel ──────────────────────────────────────
+  const renderResultPanel = () => {
+    if (songAnalysis.length === 0) return null;
+    const totalForRate = totalSongs || Math.round(songAnalysis.length / (completionRate || 1));
+    return (
+      <Box ref={resultRef} sx={{ pb: 8, scrollMarginTop: 120 }}>
+        <Box
+          sx={{
+            borderTop: '1px solid',
+            borderColor: 'divider',
+            pt: 5,
+            pb: 4,
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+            gap: { xs: 3, md: 6 },
+            alignItems: 'end',
+          }}
+        >
+          <Box>
+            <Typography variant="overline" sx={{ color: 'text.secondary', display: 'block', mb: 1 }}>
+              ── {isReverseAnalysis ? t('analysis.incompletionRate') : t('analysis.completionRate')}
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+              <Typography
+                sx={{
+                  fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+                  fontSize: { xs: 56, md: 88 },
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  color: MAGENTA,
+                  fontFeatureSettings: '"tnum"',
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                {(completionRate * 100).toFixed(1)}
+              </Typography>
+              <Typography sx={{ fontSize: 28, color: MAGENTA, fontWeight: 500 }}>%</Typography>
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+              {isReverseAnalysis ? t('analysis.incompletionDescription') : t('analysis.completionDescription')}
+            </Typography>
+          </Box>
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', py: 1 }}>
+              <Typography variant="overline" color="text.secondary">
+                {isReverseAnalysis ? t('analysis.reverseResultTitle') : t('analysis.resultTitle')}
+              </Typography>
+              <Typography
+                sx={{
+                  fontFeatureSettings: '"tnum"',
+                  fontWeight: 600,
+                  fontSize: 15,
+                }}
+              >
+                {songAnalysis.length} / {totalForRate}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', py: 1 }}>
+              <Typography variant="overline" color="text.secondary">
+                Shows analyzed
+              </Typography>
+              <Typography sx={{ fontFeatureSettings: '"tnum"', fontWeight: 600, fontSize: 15 }}>
+                {selectedCount}
+              </Typography>
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ pt: 1 }}>
+              {hasAnalyzed && (isReverseAnalysis ? t('analysis.reverseSubtitle') : t('analysis.subtitle'))}
+            </Typography>
+          </Box>
+        </Box>
+
+        <TableContainer
+          sx={{
+            borderTop: '1px solid',
+            borderColor: 'divider',
+          }}
+        >
+          <Table size={isMobile ? 'small' : 'medium'} sx={{ tableLayout: 'fixed' }}>
+            <TableHead>
+              <TableRow sx={{ '& th': { border: 0, borderBottom: '1px solid', borderColor: 'divider' } }}>
+                <TableCell sx={{ width: 56, color: 'text.secondary' }}>
+                  <Typography variant="overline">#</Typography>
+                </TableCell>
+                <TableCell>
+                  <TableSortLabel
+                    active={sortKey === 'song_name'}
+                    direction={sortKey === 'song_name' ? sortDir : 'asc'}
+                    onClick={() => toggleSort('song_name')}
+                  >
+                    <Typography variant="overline">{t('table.songName')}</Typography>
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="right" sx={{ width: { xs: 80, md: 140 } }}>
+                  <TableSortLabel
+                    active={sortKey === 'hit_count'}
+                    direction={sortKey === 'hit_count' ? sortDir : 'desc'}
+                    onClick={() => toggleSort('hit_count')}
+                  >
+                    <Typography variant="overline">{t('table.hitCount')}</Typography>
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="right" sx={{ width: { xs: 80, md: 120 }, display: { xs: 'none', sm: 'table-cell' } }}>
+                  <TableSortLabel
+                    active={sortKey === 'total_appearances'}
+                    direction={sortKey === 'total_appearances' ? sortDir : 'desc'}
+                    onClick={() => toggleSort('total_appearances')}
+                  >
+                    <Typography variant="overline">{t('table.totalAppearances')}</Typography>
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="right" sx={{ width: { xs: 80, md: 100 } }}>
+                  <TableSortLabel
+                    active={sortKey === 'selection_rate'}
+                    direction={sortKey === 'selection_rate' ? sortDir : 'desc'}
+                    onClick={() => toggleSort('selection_rate')}
+                  >
+                    <Typography variant="overline">{t('table.selectionRate')}</Typography>
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ width: { md: '32%' }, display: { xs: 'none', md: 'table-cell' } }}>
+                  <Typography variant="overline">{t('table.latestPerformance')}</Typography>
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {sortedSongs.map((row, idx) => {
+                const rate = Number(row.selection_rate) || 0;
+                const hit = row.hit_count || 0;
+                const barWidth = maxHit > 0 ? (hit / maxHit) * 100 : 0;
+                return (
+                  <TableRow
+                    key={row.id}
+                    sx={{
+                      '& td': { border: 0, borderBottom: '1px solid', borderColor: 'divider', py: 1.5 },
+                      transition: 'background 120ms ease',
+                      '&:hover': {
+                        backgroundColor: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                      },
+                    }}
+                  >
+                    <TableCell sx={{ color: 'text.secondary', fontFeatureSettings: '"tnum"' }}>
+                      {String(idx + 1).padStart(2, '0')}
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {row.song_name}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ display: { xs: 'block', md: 'none' }, mt: 0.5 }}
+                        noWrap
+                      >
+                        {row.latest_performance}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
+                        <Box
+                          sx={{
+                            position: 'relative',
+                            width: { xs: 24, md: 64 },
+                            height: 2,
+                            backgroundColor: 'divider',
+                            display: { xs: 'none', md: 'block' },
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              position: 'absolute',
+                              inset: 0,
+                              width: `${barWidth}%`,
+                              backgroundColor: MAGENTA,
+                            }}
+                          />
+                        </Box>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            fontFeatureSettings: '"tnum"',
+                            fontWeight: 600,
+                            minWidth: 28,
+                            textAlign: 'right',
+                          }}
+                        >
+                          {hit}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell
+                      align="right"
+                      sx={{
+                        fontFeatureSettings: '"tnum"',
+                        color: 'text.secondary',
+                        display: { xs: 'none', sm: 'table-cell' },
+                      }}
+                    >
+                      {row.total_appearances}
+                    </TableCell>
+                    <TableCell
+                      align="right"
+                      sx={{ fontFeatureSettings: '"tnum"', color: 'text.secondary' }}
+                    >
+                      {(rate * 100).toFixed(1)}%
+                    </TableCell>
+                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                      <Typography variant="body2" noWrap>
+                        {row.latest_performance}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" noWrap>
+                        {row.latest_venue}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+    );
+  };
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      {/* 顶部工具栏 */}
-      <AppBar position="static" elevation={1}>
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-          </Typography>
-          
-          <LanguageSwitcher />
-          
-          <FormControlLabel
-            control={
-              <Switch
-                checked={darkMode}
-                onChange={(e) => setDarkMode(e.target.checked)}
-                color="default"
-              />
-            }
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {darkMode ? <DarkModeIcon /> : <LightModeIcon />}
-              </Box>
-            }
-            sx={{ ml: 2 }}
-          />
-        </Toolbar>
-      </AppBar>
+      {globalStyles}
 
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      {/* 主标题 */}
-      <Box sx={{ textAlign: 'center', mb: 6 }}>
-        <Typography variant="h3" component="h1" gutterBottom>
-          
-        </Typography>
-        <Typography variant="h6" color="text.secondary">
-          
-        </Typography>
-      </Box>
+      {renderHeader()}
+      {renderHero()}
+      {renderModeTabs()}
 
-      {/* 模式切换器 */}
-      <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4 }}>
-        <ToggleButtonGroup
-          value={appMode}
-          exclusive
-          onChange={(_, newMode) => newMode && handleModeChange(newMode)}
-          aria-label="app mode"
-          size="large"
-        >
-          <ToggleButton value="search" aria-label="search mode">
-            <SearchIcon sx={{ mr: 1 }} />
-            {t('modes.search')}
-          </ToggleButton>
-          <ToggleButton value="multiSelect" aria-label="multi select mode">
-            <CheckBoxIcon sx={{ mr: 1 }} />
-            {t('modes.multiSelect')}
-          </ToggleButton>
-        </ToggleButtonGroup>
-      </Box>
+      <Container maxWidth="lg" sx={{ pb: selectedCount > 0 ? { xs: 14, sm: 12 } : 0 }}>
+        {appMode === 'search' ? renderSearchPanel() : renderMultiSelectPanel()}
 
-      {/* 搜索区域 */}
-      {appMode === 'search' && (
-      <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {/* 搜索框 */}
-          <Autocomplete
-            options={availableShows}
-            getOptionLabel={(option) => option.performance_name}
-            loading={autoCompleteLoading}
-            value={null}
-            inputValue={searchText}
-            onInputChange={(_, newValue) => setSearchText(newValue)}
-            onChange={(_, newValue) => handleAddShow(newValue)}
-            clearOnBlur
-            clearOnEscape
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                placeholder={t('search.placeholder')}
-                fullWidth
-                variant="outlined"
-                InputProps={{
-                  ...params.InputProps,
-                  startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
-                  endAdornment: (
-                    <>
-                      {autoCompleteLoading ? <CircularProgress color="inherit" size={20} /> : null}
-                      {params.InputProps.endAdornment}
-                    </>
-                  ),
-                }}
-              />
-            )}
-            renderOption={(props, option) => {
-              const { key, ...otherProps } = props;
-              return (
-                <Box key={key} {...otherProps} component="li">
-                  <Box>
-                    <Typography variant="body1" noWrap>
-                      {option.performance_name}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {option.date} • {option.venue}
-                    </Typography>
-                  </Box>
-                </Box>
-              );
-            }}
-            noOptionsText={t('search.noResults')}
-          />
+        {error && (
+          <Alert
+            severity="error"
+            onClose={() => setError(null)}
+            sx={{ mb: 2, borderRadius: 0 }}
+          >
+            {error}
+          </Alert>
+        )}
 
-          {/* 已选择的演出标签 */}
-          {selectedShows.length > 0 && (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {selectedShows.map((show) => (
-                <Chip
-                  key={show.id}
-                  label={show.label}
-                  onDelete={() => handleRemoveShow(show.id)}
-                  deleteIcon={<CloseIcon />}
-                  color="primary"
-                  variant="outlined"
-                  sx={{ 
-                    maxWidth: '100%',
-                    '& .MuiChip-label': {
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      maxWidth: '500px'
-                    }
-                  }}
-                />
-              ))}
-            </Box>
-          )}
+        {renderResultPanel()}
+      </Container>
 
-          {/* 分析按钮 */}
-          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
-            <Button
-              variant="contained"
-              size="large"
-              onClick={handleAnalyze}
-              disabled={selectedShows.length === 0 || loading}
-              startIcon={loading && !isReverseAnalysis ? <CircularProgress size={20} color="inherit" /> : <SearchIcon />}
-              sx={{ minWidth: 120 }}
-            >
-              {loading && !isReverseAnalysis ? t('analysis.loading') : t('analysis.button')}
-            </Button>
-            
-            <Button
-              variant="contained"
-              size="large"
-              onClick={handleReverseAnalyze}
-              disabled={selectedShows.length === 0 || loading}
-              startIcon={loading && isReverseAnalysis ? <CircularProgress size={20} color="inherit" /> : <SearchOffIcon />}
-              color="secondary"
-              sx={{ minWidth: 120 }}
-            >
-              {loading && isReverseAnalysis ? t('analysis.loading') : t('analysis.reverse')}
-            </Button>
-            
-            {/* 清除按钮（移动端友好） */}
-            {selectedShows.length > 0 && (
-              <Button
-                variant="outlined"
-                size="large"
-                onClick={handleClearAllClick}
-                startIcon={<ClearAllIcon />}
-                color="inherit"
-              >
-                {t('search.clear')}
-              </Button>
-            )}
-          </Box>
-        </Box>
-      </Paper>
-      )}
+      {renderFloatingActionBar()}
 
-      {/* 多选区域 */}
-      {appMode === 'multiSelect' && (
-        <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {/* 标题和全选按钮 */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6" component="h2">
-                {t('multiSelect.title')}
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => handleSelectAll(true)}
-                  startIcon={<SelectAllIcon />}
-                >
-                  {t('multiSelect.selectAll')}
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => handleSelectAll(false)}
-                  startIcon={<DeselectOutlinedIcon />}
-                >
-                  {t('multiSelect.deselectAll')}
-                </Button>
-              </Box>
-            </Box>
-
-            {/* 已选择计数 */}
-            {selectedShowIds.size > 0 && (
-              <Alert severity="info" sx={{ mb: 2 }}>
-                {t('multiSelect.selectedCount', { count: selectedShowIds.size })}
-              </Alert>
-            )}
-
-            {/* 加载状态 */}
-            {multiSelectLoading && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
-                <CircularProgress />
-              </Box>
-            )}
-
-            {/* 分组列表 */}
-            {!multiSelectLoading && groupedShows.length > 0 && (
-              <List sx={{ width: '100%', maxHeight: 600, overflow: 'auto' }}>
-                {groupedShows.map((group, groupIndex) => {
-                  const isExpanded = expandedGroups.has(group.groupName);
-                  const groupSelectedCount = group.shows.filter(show => selectedShowIds.has(show.id)).length;
-                  const isGroupFullySelected = groupSelectedCount === group.shows.length;
-                  const isGroupPartiallySelected = groupSelectedCount > 0 && groupSelectedCount < group.shows.length;
-
-                  return (
-                    <Box key={groupIndex}>
-                      {/* 分组头部 */}
-                      <ListItem disablePadding>
-                        <ListItemButton
-                          onClick={() => toggleGroupExpanded(group.groupName)}
-                          sx={{ 
-                            bgcolor: darkMode ? '#2a2a2a' : '#f5f5f5',
-                            '&:hover': {
-                              bgcolor: darkMode ? '#3a3a3a' : '#e0e0e0',
-                            }
-                          }}
-                        >
-                          <ListItemIcon>
-                            <Checkbox
-                              edge="start"
-                              checked={isGroupFullySelected}
-                              indeterminate={isGroupPartiallySelected}
-                              tabIndex={-1}
-                              disableRipple
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleGroupSelect(group, !isGroupFullySelected);
-                              }}
-                            />
-                          </ListItemIcon>
-                          <ListItemText
-                            primary={
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                                  {group.groupName}
-                                </Typography>
-                                <Chip 
-                                  label={`${group.shows.length}${t('multiSelect.showCount')}`}
-                                  size="small"
-                                  color="primary"
-                                  variant="outlined"
-                                />
-                                {groupSelectedCount > 0 && (
-                                  <Chip 
-                                    label={`${groupSelectedCount}/${group.shows.length}`}
-                                    size="small"
-                                    color="secondary"
-                                  />
-                                )}
-                              </Box>
-                            }
-                            secondary={
-                              <Typography variant="caption" color="text.secondary">
-                                最新: {group.shows[0]?.date} • {group.shows[0]?.venue}
-                              </Typography>
-                            }
-                          />
-                          {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                        </ListItemButton>
-                      </ListItem>
-
-                      {/* 分组下的演出列表 */}
-                      <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                        <List component="div" disablePadding>
-                          {group.shows.map((show) => (
-                            <ListItem key={show.id} disablePadding sx={{ pl: 4 }}>
-                              <ListItemButton
-                                onClick={() => handleShowSelect(show.id, !selectedShowIds.has(show.id))}
-                                dense
-                              >
-                                <ListItemIcon>
-                                  <Checkbox
-                                    edge="start"
-                                    checked={selectedShowIds.has(show.id)}
-                                    tabIndex={-1}
-                                    disableRipple
-                                  />
-                                </ListItemIcon>
-                                <ListItemText
-                                  primary={show.performance_name}
-                                  secondary={`${show.date} • ${show.venue}`}
-                                />
-                              </ListItemButton>
-                            </ListItem>
-                          ))}
-                        </List>
-                      </Collapse>
-
-                      {groupIndex < groupedShows.length - 1 && <Divider />}
-                    </Box>
-                  );
-                })}
-              </List>
-            )}
-
-            {/* 无数据提示 */}
-            {!multiSelectLoading && groupedShows.length === 0 && (
-              <Alert severity="info">
-                {t('multiSelect.noShows')}
-              </Alert>
-            )}
-
-            {/* 分析按钮 */}
-            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap', mt: 2 }}>
-              <Button
-                variant="contained"
-                size="large"
-                onClick={handleAnalyze}
-                disabled={selectedShowIds.size === 0 || loading}
-                startIcon={loading && !isReverseAnalysis ? <CircularProgress size={20} color="inherit" /> : <SearchIcon />}
-                sx={{ minWidth: 120 }}
-              >
-                {loading && !isReverseAnalysis ? t('analysis.loading') : t('analysis.button')}
-              </Button>
-              
-              <Button
-                variant="contained"
-                size="large"
-                onClick={handleReverseAnalyze}
-                disabled={selectedShowIds.size === 0 || loading}
-                startIcon={loading && isReverseAnalysis ? <CircularProgress size={20} color="inherit" /> : <SearchOffIcon />}
-                color="secondary"
-                sx={{ minWidth: 120 }}
-              >
-                {loading && isReverseAnalysis ? t('analysis.loading') : t('analysis.reverse')}
-              </Button>
-            </Box>
-          </Box>
-        </Paper>
-      )}
-
-      {/* 错误提示 */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
-
-      {/* 恢复选择提示 */}
       <Snackbar
         open={showRestoredMessage}
-        autoHideDuration={6000}
+        autoHideDuration={5000}
         onClose={() => setShowRestoredMessage(false)}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ mt: 8 }}
       >
-        <Alert 
-          onClose={() => setShowRestoredMessage(false)} 
-          severity="info" 
-          sx={{ width: '100%' }}
+        <Alert
+          onClose={() => setShowRestoredMessage(false)}
+          severity="info"
+          sx={{ borderRadius: 0 }}
         >
           {t('search.restored')} ({selectedShows.length})
         </Alert>
       </Snackbar>
 
-      {/* 结果区域 */}
-      {songAnalysis.length > 0 && (
-        <Paper elevation={3} sx={{ p: 3 }}>
-          {/* 统计信息 */}
-          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Box>
-              <Typography variant="h5" component="h2">
-                {isReverseAnalysis ? t('analysis.reverseResultTitle') : t('analysis.resultTitle')} ({songAnalysis.length} / {Math.round(songAnalysis.length / completionRate)})
-              </Typography>
-              {hasAnalyzed && (
-                <Typography variant="caption" color="text.secondary">
-                  {isReverseAnalysis 
-                    ? t('analysis.reverseSubtitle')
-                    : t('analysis.subtitle')
-                  }
-                </Typography>
-              )}
-            </Box>
-            <Box sx={{ textAlign: 'right' }}>
-              <Typography variant="h6" color="primary">
-                {isReverseAnalysis ? t('analysis.incompletionRate') : t('analysis.completionRate')}: {(completionRate * 100).toFixed(1)}% 
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {isReverseAnalysis ? t('analysis.incompletionDescription') : t('analysis.completionDescription')}
-              </Typography>
-            </Box>
-          </Box>
-
-          {/* 数据表格 */}
-          <Box sx={{ width: '100%' }}>
-            <DataGrid
-              rows={songAnalysis}
-              columns={columns}
-              sortModel={sortModel}
-              onSortModelChange={setSortModel}
-              hideFooterPagination
-              hideFooter
-              disableRowSelectionOnClick
-              autoHeight
-              sx={{
-                border: darkMode ? '1px solid #333' : '1px solid #e0e0e0',
-                '& .MuiDataGrid-cell': {
-                  borderRight: darkMode ? '1px solid #333' : '1px solid #e0e0e0',
-                  padding: '8px 16px',
-                },
-                '& .MuiDataGrid-columnHeaders': {
-                  backgroundColor: darkMode ? '#333' : '#f5f5f5',
-                  borderBottom: darkMode ? '1px solid #333' : '1px solid #e0e0e0',
-                  fontWeight: 'bold',
-                },
-                '& .MuiDataGrid-row': {
-                  '&:hover': {
-                    backgroundColor: darkMode ? '#2a2a2a' : '#f5f5f5',
-                  },
-                  '&:nth-of-type(even)': {
-                    backgroundColor: darkMode ? '#1a1a1a' : '#fafafa',
-                  },
-                },
-                '& .MuiDataGrid-cell--textLeft': {
-                  textAlign: 'left',
-                },
-                '& .MuiDataGrid-cell--textCenter': {
-                  textAlign: 'center',
-                },
-                '& .MuiDataGrid-virtualScroller': {
-                  backgroundColor: darkMode ? '#121212' : '#ffffff',
-                },
-              }}
-            />
-          </Box>
-        </Paper>
-      )}
-
-      {/* 清除确认对话框 */}
       <Dialog
         open={showClearConfirm}
-        onClose={handleClearAllCancel}
-        aria-labelledby="clear-confirm-dialog-title"
-        aria-describedby="clear-confirm-dialog-description"
+        onClose={() => setShowClearConfirm(false)}
+        PaperProps={{ sx: { borderRadius: 0, border: '1px solid', borderColor: 'divider' } }}
       >
-        <DialogTitle id="clear-confirm-dialog-title">
+        <DialogTitle sx={{ fontFamily: '"Shippori Mincho", "Noto Serif JP", serif' }}>
           {t('search.clearConfirmTitle')}
         </DialogTitle>
         <DialogContent>
-          <DialogContentText id="clear-confirm-dialog-description">
-            {t('search.clearConfirmMessage')}
-          </DialogContentText>
+          <DialogContentText>{t('search.clearConfirmMessage')}</DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClearAllCancel} color="primary">
+          <Button onClick={() => setShowClearConfirm(false)} sx={{ color: 'text.secondary' }}>
             {t('common.cancel')}
           </Button>
-          <Button onClick={handleClearAllConfirm} color="error" autoFocus>
+          <Button onClick={handleClearAllConfirm} color="primary" autoFocus variant="contained">
             {t('search.clearConfirmButton')}
           </Button>
         </DialogActions>
       </Dialog>
-    </Container>
     </ThemeProvider>
   );
 };

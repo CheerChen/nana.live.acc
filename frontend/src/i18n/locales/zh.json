@@ -1,7 +1,9 @@
 {
   "app": {
-    "title": "",
-    "subtitle": ""
+    "brand": "NANA LIVE ACC.",
+    "title": "NANA MIZUKI LIVE ACCOMPLISHMENT",
+    "subtitle": "水樹奈々 演唱会曲目达成率分析",
+    "tagline": "Setlist Tracker"
   },
   "modes": {
     "search": "搜索模式",

@@ -1,7 +1,9 @@
 {
   "app": {
-    "title": "",
-    "subtitle": ""
+    "brand": "NANA LIVE ACC.",
+    "title": "NANA MIZUKI LIVE ACCOMPLISHMENT",
+    "subtitle": "Live setlist accomplishment tracker",
+    "tagline": "Setlist Tracker"
   },
   "modes": {
     "search": "Search Mode",
@@ -28,24 +30,24 @@
     "clearConfirmButton": "Confirm Clear"
   },
   "analysis": {
-    "button": "Analyze",
+    "button": "Calculate Completion",
     "loading": "Analyzing...",
-    "reverse": "Reverse",
-    "resultTitle": "Forward Analysis Results - Songs Heard",
-    "reverseResultTitle": "Reverse Analysis Results - Songs Not Heard",
+    "reverse": "Calculate Misses",
+    "resultTitle": "Songs Heard",
+    "reverseResultTitle": "Songs Missed",
     "completionRate": "Completion Rate",
-    "incompletionRate": "Incompletion Rate",
-    "subtitle": "Shows songs performed in selected shows, sorted by occurrence count",
-    "reverseSubtitle": "Shows songs that never appeared in selected shows, sorted by historical selection rate",
-    "completionDescription": "Percentage of heard songs out of all songs",
-    "incompletionDescription": "Percentage of unheard songs out of all songs",
+    "incompletionRate": "Miss Rate",
+    "subtitle": "Songs performed in the selected shows, sorted by play count",
+    "reverseSubtitle": "Songs never performed in the selected shows, sorted by historical play rate",
+    "completionDescription": "Share of songs heard out of the full catalog",
+    "incompletionDescription": "Share of songs missed out of the full catalog",
     "songCount": "songs"
   },
   "table": {
-    "songName": "Song Name",
-    "hitCount": "Count",
-    "totalAppearances": "Total Appearances",
-    "selectionRate": "Selection Rate",
+    "songName": "Song",
+    "hitCount": "Plays",
+    "totalAppearances": "All-time Plays",
+    "selectionRate": "Play Rate",
     "latestPerformance": "Latest Performance",
     "latestVenue": "Venue"
   },

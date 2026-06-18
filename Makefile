@@ -128,6 +128,14 @@ export-data: $(VENV_DIR)
 	$(call load_env) . $(VENV_DIR)/bin/activate && $(PYTHON) scripts/export_static_data.py
 	@echo "Data export completed successfully"
 
+# Import LIVE VISION 2025-2026 setlist from the published Google Sheet
+# directly into frontend/public/data/*.json (no DB involved). Idempotent.
+.PHONY: import-vision
+import-vision:
+	@echo "Importing LIVE VISION 2025-2026 setlist from Google Sheet..."
+	$(PYTHON) scripts/import_vision_sheet.py
+	@echo "Vision import completed"
+
 # Complete development environment setup
 .PHONY: dev-setup
 dev-setup: setup frontend-install
