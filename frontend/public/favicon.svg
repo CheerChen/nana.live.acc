@@ -1,12 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" fill="#E5004F"/>
-  <text
-    x="32"
-    y="48"
-    text-anchor="middle"
-    font-family="'Shippori Mincho', 'Noto Serif JP', Georgia, serif"
-    font-weight="700"
-    font-size="48"
+  <!-- Path-based block "N" so the glyph renders without any font dependency -->
+  <path
     fill="#FFFFFF"
-  >N</text>
+    d="M14 12 L24 12 L40 38 L40 12 L50 12 L50 52 L40 52 L24 26 L24 52 L14 52 Z"
+  />
 </svg>
