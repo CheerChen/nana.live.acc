@@ -401,12 +401,33 @@ const HomePage: React.FC = () => {
     setSortDir('desc');
   }, [analysisTab]);
 
+  // Editorial atmosphere: two extra-soft radial accent washes anchored at
+  // opposite corners, plus a faint paper-grain SVG tiled across the page.
+  // Dark mode drops the grain (the gradients alone provide enough texture).
+  const grainSvg =
+    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.07 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>\")";
+
+  const bodyBackgroundImage = darkMode
+    ? [
+        `radial-gradient(ellipse 70% 55% at 85% 5%, ${accent}1F, transparent 60%)`,
+        `radial-gradient(ellipse 60% 50% at 8% 92%, ${rareAccent}14, transparent 65%)`,
+      ].join(', ')
+    : [
+        `radial-gradient(ellipse 70% 55% at 85% 5%, ${accent}14, transparent 60%)`,
+        `radial-gradient(ellipse 60% 50% at 8% 92%, ${rareAccent}0F, transparent 65%)`,
+        grainSvg,
+      ].join(', ');
+
   const globalStyles = (
     <GlobalStyles
       styles={{
         body: {
           fontFeatureSettings: '"palt"',
           WebkitFontSmoothing: 'antialiased',
+          minHeight: '100vh',
+          backgroundImage: bodyBackgroundImage,
+          backgroundAttachment: darkMode ? 'fixed, fixed' : 'fixed, fixed, fixed',
+          backgroundRepeat: darkMode ? 'no-repeat, no-repeat' : 'no-repeat, no-repeat, repeat',
         },
         '::selection': {
           backgroundColor: accent,
@@ -453,6 +474,7 @@ const HomePage: React.FC = () => {
                 backgroundColor: accent,
                 alignSelf: 'center',
                 display: 'inline-block',
+                boxShadow: `0 0 8px ${accent}80`,
               }}
             />
             <Typography
@@ -501,8 +523,6 @@ const HomePage: React.FC = () => {
           py: { xs: 6, md: 10 },
           borderBottom: '1px solid',
           borderColor: 'divider',
-          position: 'relative',
-          overflow: 'hidden',
         }}
       >
         <Container maxWidth="lg">
@@ -513,6 +533,7 @@ const HomePage: React.FC = () => {
                 color: accent,
                 display: 'block',
                 mb: 2,
+                textShadow: `0 0 12px ${accent}33`,
               }}
             >
               ◆ {t('app.tagline')}
@@ -544,19 +565,6 @@ const HomePage: React.FC = () => {
             </Typography>
           </Box>
         </Container>
-        <Box
-          aria-hidden
-          sx={{
-            position: 'absolute',
-            right: -80,
-            top: 0,
-            bottom: 0,
-            width: 360,
-            background: `linear-gradient(135deg, ${accent}11, transparent 60%)`,
-            pointerEvents: 'none',
-            display: { xs: 'none', md: 'block' },
-          }}
-        />
       </Box>
 
       <Container

@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>nana.live.acc — background mood demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Noto+Sans+JP:wght@400;600&family=Shippori+Mincho:wght@600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #175cff;
+    --rare:   #E5004F;
+    --bg:     #FAFAFA;
+    --paper:  #FFFFFF;
+    --text:   #111111;
+    --text2:  rgba(17,17,17,0.66);
+    --divider:rgba(17,17,17,0.09);
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Inter', 'Noto Sans JP', -apple-system, system-ui, sans-serif;
+    color: var(--text);
+    background: #ECECEC;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: 'palt';
+  }
+  .toolbar {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--divider);
+    padding: 16px 24px;
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .toolbar small { font-weight: 400; letter-spacing: 0.04em; color: var(--text2); margin-left: 12px; }
+
+  /* Each variant lives inside its own container so the background only paints that panel. */
+  .panel {
+    position: relative;
+    padding: 60px 48px 80px;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .label {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    font-weight: 600;
+    color: var(--text2);
+    margin-bottom: 28px;
+  }
+  .label strong {
+    color: var(--text);
+    margin-right: 8px;
+  }
+  .hero { max-width: 760px; margin-bottom: 36px; }
+  .tagline {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+  .tagline .dot {
+    display: inline-block; width: 6px; height: 6px;
+    background: var(--accent); margin-right: 10px;
+    transform: translateY(-1px);
+  }
+  h1 {
+    font-family: 'Shippori Mincho', serif;
+    font-size: 56px; font-weight: 600;
+    line-height: 1.12; letter-spacing: -0.01em;
+    margin: 0 0 16px; white-space: pre-line;
+  }
+  .sub { color: var(--text2); font-size: 15px; line-height: 1.6; max-width: 540px; }
+
+  .row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    max-width: 1100px;
+  }
+  .card {
+    position: relative;
+    background: var(--paper);
+    border: 1px solid var(--divider);
+    padding: 22px 20px 24px;
+    transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+  }
+  .card .date {
+    font-family: 'Inter', monospace;
+    font-feature-settings: 'tnum';
+    font-size: 12px; font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.04em;
+    margin-bottom: 12px;
+  }
+  .card .name {
+    font-size: 14px; font-weight: 600;
+    line-height: 1.4; margin-bottom: 10px;
+    display: -webkit-box; -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .card .venue {
+    font-size: 11px; color: var(--text2);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .card.selected {
+    border-color: var(--accent);
+  }
+  .card.selected::after {
+    content: '✓';
+    position: absolute; top: 8px; right: 8px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 12px; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ─────────────────────────────────────────────────────────────────
+     Variant A — Editorial atmosphere
+     Subtle paper grain + two ultra-blurred radial washes (accent +
+     rare) + tinted card shadows.
+     ───────────────────────────────────────────────────────────────── */
+  .panel--editorial {
+    background:
+      radial-gradient(ellipse 70% 55% at 85% 5%, color-mix(in srgb, var(--accent) 8%, transparent) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 8% 92%, color-mix(in srgb, var(--rare) 6%, transparent) 0%, transparent 60%),
+      var(--bg);
+  }
+  .panel--editorial::before {
+    content: '';
+    position: absolute; inset: 0; z-index: -1;
+    pointer-events: none;
+    background-image:
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.12 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    opacity: 0.55;
+  }
+  .panel--editorial .card {
+    box-shadow:
+      0 1px 2px color-mix(in srgb, var(--accent) 6%, transparent),
+      0 8px 24px color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+  .panel--editorial .card:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      0 1px 2px color-mix(in srgb, var(--accent) 14%, transparent),
+      0 14px 36px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .panel--editorial .tagline .dot {
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+
+  /* ─────────────────────────────────────────────────────────────────
+     Variant B — Aurora drift
+     Two large drifting blobs (accent + complement) blurred to 80px.
+     Animated 24s, respects prefers-reduced-motion.
+     ───────────────────────────────────────────────────────────────── */
+  .panel--aurora {
+    background: var(--bg);
+  }
+  .panel--aurora::before {
+    content: '';
+    position: absolute; inset: -10%;
+    z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(circle 420px at 22% 28%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 70%),
+      radial-gradient(circle 520px at 78% 72%, color-mix(in srgb, #00C6FF 16%, transparent), transparent 72%),
+      radial-gradient(circle 360px at 55% 90%, color-mix(in srgb, var(--rare) 10%, transparent), transparent 70%);
+    filter: blur(60px);
+    animation: drift 24s ease-in-out infinite alternate;
+  }
+  @keyframes drift {
+    0%   { transform: translate(0, 0)     rotate(0deg); }
+    50%  { transform: translate(4%, -3%)  rotate(8deg); }
+    100% { transform: translate(-3%, 4%)  rotate(-6deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .panel--aurora::before { animation: none; }
+  }
+  .panel--aurora .card {
+    backdrop-filter: blur(6px);
+    background: color-mix(in srgb, var(--paper) 92%, transparent);
+  }
+  .panel--aurora .card:hover { transform: translateY(-1px); }
+
+  /* ─────────────────────────────────────────────────────────────────
+     Variant C — Crystalline shadows only
+     Background stays flat. Cards float with multi-layer tinted shadows.
+     Accent text gains a barely-there glow.
+     ───────────────────────────────────────────────────────────────── */
+  .panel--crystal {
+    background: var(--bg);
+  }
+  .panel--crystal .card {
+    box-shadow:
+      0 1px 2px color-mix(in srgb, var(--accent) 8%, transparent),
+      0 12px 32px color-mix(in srgb, var(--accent) 10%, transparent),
+      0 24px 60px color-mix(in srgb, var(--accent) 5%, transparent);
+  }
+  .panel--crystal .card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 1px 2px color-mix(in srgb, var(--accent) 16%, transparent),
+      0 16px 40px color-mix(in srgb, var(--accent) 18%, transparent),
+      0 30px 80px color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+  .panel--crystal .tagline { text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent); }
+  .panel--crystal .tagline .dot {
+    box-shadow:
+      0 0 6px color-mix(in srgb, var(--accent) 60%, transparent),
+      0 0 16px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+
+  /* Divider between variants */
+  .panel + .panel { border-top: 1px solid var(--divider); }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .row { grid-template-columns: repeat(2, 1fr); }
+    h1 { font-size: 38px; }
+    .panel { padding: 40px 24px 60px; }
+  }
+
+  /* Dark mode toggle */
+  body.dark {
+    background: #050507;
+    --bg:     #0E0E10;
+    --paper:  #16161A;
+    --text:   #F5F5F5;
+    --text2:  rgba(255,255,255,0.72);
+    --divider:rgba(255,255,255,0.09);
+    --accent: #FF2068;
+    --rare:   #1FA9FF;
+  }
+  body.dark .toolbar {
+    background: rgba(14,14,16,0.88);
+    color: #F5F5F5;
+  }
+  .switch {
+    background: transparent; border: 1px solid var(--divider);
+    color: inherit; padding: 6px 14px;
+    font: inherit; font-size: 11px; font-weight: 600;
+    letter-spacing: 0.18em; cursor: pointer;
+    margin-left: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    NANA.LIVE.ACC — BACKGROUND MOOD DEMO
+    <small>three directions, side by side</small>
+    <button class="switch" onclick="document.body.classList.toggle('dark')">TOGGLE DARK</button>
+  </div>
+
+  <!-- ─────────────── VARIANT A ─────────────── -->
+  <section class="panel panel--editorial">
+    <div class="label"><strong>A.</strong> EDITORIAL ATMOSPHERE — grain + soft color washes + tinted card shadows</div>
+    <div class="hero">
+      <div class="tagline"><span class="dot"></span>SUPPORTED BY CHEERCHEN</div>
+      <h1>NANA MIZUKI<br>LIVE SETLIST<br>TRACKER</h1>
+      <div class="sub">水樹奈々 | ライブセットリスト・歌唱回数/分析</div>
+    </div>
+    <div class="row">
+      <div class="card selected">
+        <div class="date">2026.02.15</div>
+        <div class="name">NANA MIZUKI LIVE VISION 2025-2026 香港</div>
+        <div class="venue">MacPherson Stadium</div>
+      </div>
+      <div class="card">
+        <div class="date">2026.01.25</div>
+        <div class="name">NANA MIZUKI LIVE VISION 2025-2026 東京3日目</div>
+        <div class="venue">東京ガーデンシアター</div>
+      </div>
+      <div class="card">
+        <div class="date">2026.01.24</div>
+        <div class="name">NANA MIZUKI LIVE VISION 2025-2026 東京2日目</div>
+        <div class="venue">東京ガーデンシアター</div>
+      </div>
+      <div class="card">
+        <div class="date">2026.01.23</div>
+        <div class="name">NANA MIZUKI LIVE VISION 2025-2026 東京1日目</div>
+        <div class="venue">東京ガーデンシアター</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────── VARIANT B ─────────────── -->
+  <section class="panel panel--aurora">
+    <div class="label"><strong>B.</strong> AURORA DRIFT — animated radial blobs, blurred 60px, 24s cycle</div>
+    <div class="hero">
+      <div class="tagline"><span class="dot"></span>SUPPORTED BY CHEERCHEN</div>
+      <h1>NANA MIZUKI<br>LIVE SETLIST<br>TRACKER</h1>
+      <div class="sub">水樹奈々 | ライブセットリスト・歌唱回数/分析</div>
+    </div>
+    <div class="row">
+      <div class="card selected">
+        <div class="date">2026.02.15</div>
+        <div class="name">NANA MIZUKI LIVE VISION 2025-2026 香港</div>
+        <div class="venue">MacPherson Stadium</div>
+      </div>
+      <div class="card">
+        <div class="date">2026.01.25</div>
+        <div class="name">NANA MIZUKI LIVE VISION 2025-2026 東京3日目</div>
+        <div class="venue">東京ガーデンシアター</div>
+      </div>
+      <div class="card">
+        <div class="date">2026.01.24</div>
+        <div class="name">NANA MIZUKI LIVE VISION 2025-2026 東京2日目</div>
+        <div class="venue">東京ガーデンシアター</div>
+      </div>
+      <div class="card">
+        <div class="date">2026.01.23</div>
+        <div class="name">NANA MIZUKI LIVE VISION 2025-2026 東京1日目</div>
+        <div class="venue">東京ガーデンシアター</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────── VARIANT C ─────────────── -->
+  <section class="panel panel--crystal">
+    <div class="label"><strong>C.</strong> CRYSTALLINE SHADOWS — flat bg, multi-layer tinted shadows, accent glow</div>
+    <div class="hero">
+      <div class="tagline"><span class="dot"></span>SUPPORTED BY CHEERCHEN</div>
+      <h1>NANA MIZUKI<br>LIVE SETLIST<br>TRACKER</h1>
+      <div class="sub">水樹奈々 | ライブセットリスト・歌唱回数/分析</div>
+    </div>
+    <div class="row">
+      <div class="card selected">
+        <div class="date">2026.02.15</div>
+        <div class="name">NANA MIZUKI LIVE VISION 2025-2026 香港</div>
+        <div class="venue">MacPherson Stadium</div>
+      </div>
+      <div class="card">
+        <div class="date">2026.01.25</div>
+        <div class="name">NANA MIZUKI LIVE VISION 2025-2026 東京3日目</div>
+        <div class="venue">東京ガーデンシアター</div>
+      </div>
+      <div class="card">
+        <div class="date">2026.01.24</div>
+        <div class="name">NANA MIZUKI LIVE VISION 2025-2026 東京2日目</div>
+        <div class="venue">東京ガーデンシアター</div>
+      </div>
+      <div class="card">
+        <div class="date">2026.01.23</div>
+        <div class="name">NANA MIZUKI LIVE VISION 2025-2026 東京1日目</div>
+        <div class="venue">東京ガーデンシアター</div>
+      </div>
+    </div>
+  </section>
+</body>
+</html>

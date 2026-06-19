@@ -35,14 +35,20 @@ const ShowCard: React.FC<ShowCardProps> = ({ show, selected, accent, onToggle })
         border: '1px solid',
         borderColor: selected ? accent : 'divider',
         backgroundColor: 'background.paper',
-        transition: 'border-color 140ms ease',
+        boxShadow: selected
+          ? `0 1px 2px ${accent}24, 0 8px 24px ${accent}24`
+          : `0 1px 2px ${accent}0F, 0 8px 24px ${accent}14`,
+        transition: 'border-color 140ms ease, box-shadow 160ms ease',
         outline: 'none',
         '&:hover': {
           borderColor: selected ? accent : 'text.primary',
+          boxShadow: selected
+            ? `0 1px 2px ${accent}33, 0 14px 36px ${accent}33`
+            : `0 1px 2px ${accent}1F, 0 14px 36px ${accent}24`,
         },
         '&:focus-visible': {
           borderColor: accent,
-          boxShadow: `0 0 0 2px ${accent}40`,
+          boxShadow: `0 0 0 2px ${accent}40, 0 8px 24px ${accent}24`,
         },
       }}
     >
