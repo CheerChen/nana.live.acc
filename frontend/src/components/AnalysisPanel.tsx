@@ -104,7 +104,7 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
           <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
             <Typography
               sx={{
-                fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+                fontFamily: '"Shippori Mincho", serif',
                 fontSize: { xs: 40, md: 52 },
                 fontWeight: 600,
                 lineHeight: 1,

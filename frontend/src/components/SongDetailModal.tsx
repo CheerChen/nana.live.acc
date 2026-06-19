@@ -106,7 +106,7 @@ const SongDetailModal: React.FC<SongDetailModalProps> = ({
           <Typography
             component="h2"
             sx={{
-              fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+              fontFamily: '"Shippori Mincho", serif',
               fontSize: { xs: 24, sm: 30 },
               fontWeight: 600,
               lineHeight: 1.25,
@@ -145,7 +145,7 @@ const SongDetailModal: React.FC<SongDetailModalProps> = ({
                 </Typography>
                 <Typography
                   sx={{
-                    fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+                    fontFamily: '"Shippori Mincho", serif',
                     fontSize: { xs: 20, sm: 26 },
                     fontWeight: 600,
                     lineHeight: 1.1,

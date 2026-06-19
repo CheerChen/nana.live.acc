@@ -98,7 +98,7 @@ const SelectPanel: React.FC<SelectPanelProps> = ({
           </Typography>
           <Typography
             sx={{
-              fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+              fontFamily: '"Shippori Mincho", serif',
               fontSize: 22,
               fontWeight: 600,
               fontFeatureSettings: '"tnum"',
@@ -187,7 +187,7 @@ const SelectPanel: React.FC<SelectPanelProps> = ({
                 >
                   <Typography
                     sx={{
-                      fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+                      fontFamily: '"Shippori Mincho", serif',
                       fontSize: 18,
                       fontWeight: 600,
                       minWidth: 0,

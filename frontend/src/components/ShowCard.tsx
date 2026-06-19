@@ -25,7 +25,6 @@ const ShowCard: React.FC<ShowCardProps> = ({ show, selected, accent, onToggle })
     <Box
       role="checkbox"
       aria-checked={selected}
-      aria-label={`${formatDate(show.date)} · ${show.performance_name}`}
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={handleKeyDown}

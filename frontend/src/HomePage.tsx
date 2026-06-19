@@ -41,8 +41,12 @@ import {
   SortKey,
 } from './components/AnalysisPanel';
 
-const RightDrawer = React.lazy(() => import('./components/RightDrawer'));
-const SongDetailModal = React.lazy(() => import('./components/SongDetailModal'));
+const RightDrawer = React.lazy(() =>
+  import(/* webpackPrefetch: true */ './components/RightDrawer'),
+);
+const SongDetailModal = React.lazy(() =>
+  import(/* webpackPrefetch: true */ './components/SongDetailModal'),
+);
 
 type RightPanelType = 'setlist' | 'analysis';
 
@@ -51,14 +55,20 @@ const THEME_STORAGE_KEY = 'nana-theme-mode';
 const EXPIRY_DAYS = 7;
 const STORAGE_DEBOUNCE_MS = 200;
 
-// Brand magenta — primary accent in dark mode, "super rare" accent in light mode.
+// Brand magenta — used as the "super rare" marker on light backgrounds where
+// it clears WCAG AA contrast. Same hex also lives in the favicon theme color.
 const MAGENTA = '#E5004F';
-const MAGENTA_HOVER = '#F2336F';
-const MAGENTA_ACTIVE = '#B8003F';
-// Light-mode primary blue (user-supplied).
-const BLUE = '#306eff';
-const BLUE_HOVER = '#4a80ff';
-const BLUE_ACTIVE = '#175cff';
+// Dark-mode magenta palette — bumped up so the accent passes 4.5:1 contrast
+// on the #0E0E10 background. The legacy brand hex is retained as the active
+// pressed state so the brand DNA still shows on user interaction.
+const MAGENTA_DARK = '#FF2068';
+const MAGENTA_DARK_HOVER = '#FF4D87';
+const MAGENTA_DARK_ACTIVE = '#E5004F';
+// Light-mode primary blue. Base shifted darker to clear WCAG AA on the
+// #fafafa background; the previous #306eff lives on as the hover state.
+const BLUE = '#175cff';
+const BLUE_HOVER = '#306eff';
+const BLUE_ACTIVE = '#0036C9';
 // Sky cyan used for "super rare" marker in dark mode (kept distinct from magenta).
 const SKY_BLUE = '#1FA9FF';
 
@@ -143,12 +153,12 @@ const HomePage: React.FC = () => {
     loading: boolean;
   }>({ open: false, detail: null, loading: false });
 
-  // Theme-aware accents. Magenta is the brand mark in dark mode; light mode
-  // swaps to indigo blue so the UI reads as a different surface. The "rare"
-  // marker uses the opposite hue so it always stands out from the primary.
-  const accent = darkMode ? MAGENTA : BLUE;
-  const accentHover = darkMode ? MAGENTA_HOVER : BLUE_HOVER;
-  const accentActive = darkMode ? MAGENTA_ACTIVE : BLUE_ACTIVE;
+  // Theme-aware accents. Dark-mode magenta is the brightened palette that
+  // passes WCAG AA; light mode uses indigo blue. The "rare" marker uses the
+  // opposite hue so it always stands out from the primary.
+  const accent = darkMode ? MAGENTA_DARK : BLUE;
+  const accentHover = darkMode ? MAGENTA_DARK_HOVER : BLUE_HOVER;
+  const accentActive = darkMode ? MAGENTA_DARK_ACTIVE : BLUE_ACTIVE;
   const rareAccent = darkMode ? SKY_BLUE : MAGENTA;
 
   useEffect(() => {
@@ -204,17 +214,16 @@ const HomePage: React.FC = () => {
           fontFamily: [
             'Inter',
             '"Noto Sans JP"',
-            '"Noto Sans SC"',
             '-apple-system',
             'BlinkMacSystemFont',
             'system-ui',
             'sans-serif',
           ].join(','),
-          h1: { fontFamily: '"Shippori Mincho", "Noto Serif JP", serif', fontWeight: 600, letterSpacing: '-0.01em' },
-          h2: { fontFamily: '"Shippori Mincho", "Noto Serif JP", serif', fontWeight: 600, letterSpacing: '-0.01em' },
-          h3: { fontFamily: '"Shippori Mincho", "Noto Serif JP", serif', fontWeight: 600, letterSpacing: '-0.01em' },
-          h4: { fontFamily: '"Shippori Mincho", "Noto Serif JP", serif', fontWeight: 600 },
-          h5: { fontFamily: '"Shippori Mincho", "Noto Serif JP", serif', fontWeight: 600 },
+          h1: { fontFamily: '"Shippori Mincho", serif', fontWeight: 600, letterSpacing: '-0.01em' },
+          h2: { fontFamily: '"Shippori Mincho", serif', fontWeight: 600, letterSpacing: '-0.01em' },
+          h3: { fontFamily: '"Shippori Mincho", serif', fontWeight: 600, letterSpacing: '-0.01em' },
+          h4: { fontFamily: '"Shippori Mincho", serif', fontWeight: 600 },
+          h5: { fontFamily: '"Shippori Mincho", serif', fontWeight: 600 },
           overline: { letterSpacing: '0.22em', fontWeight: 600, fontSize: 11 },
         },
         components: {
@@ -511,7 +520,7 @@ const HomePage: React.FC = () => {
             <Typography
               component="h1"
               sx={{
-                fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+                fontFamily: '"Shippori Mincho", serif',
                 fontWeight: 600,
                 fontSize: { xs: 32, sm: 44, md: 56 },
                 lineHeight: 1.15,
@@ -551,6 +560,7 @@ const HomePage: React.FC = () => {
       </Box>
 
       <Container
+        component="main"
         maxWidth="lg"
         sx={{ pb: selectedCount > 0 ? { xs: 14, sm: 12 } : 0 }}
       >
@@ -590,6 +600,8 @@ const HomePage: React.FC = () => {
         darkMode={darkMode}
       />
 
+      {/* Two Suspense boundaries so loading SongDetailModal's chunk
+          doesn't unmount the right drawer mid-interaction. */}
       <Suspense fallback={null}>
         {(rightPanel.open || rightPanel.type !== null) && (
           <RightDrawer
@@ -613,6 +625,9 @@ const HomePage: React.FC = () => {
             darkMode={darkMode}
           />
         )}
+      </Suspense>
+
+      <Suspense fallback={null}>
         {songModal.open && (
           <SongDetailModal
             open={songModal.open}

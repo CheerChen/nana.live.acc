@@ -342,7 +342,7 @@ const SetlistBody: React.FC<SetlistBodyProps> = ({
           <Typography
             component="h2"
             sx={{
-              fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+              fontFamily: '"Shippori Mincho", serif',
               fontSize: { xs: 24, md: 34 },
               fontWeight: 600,
               lineHeight: 1.2,

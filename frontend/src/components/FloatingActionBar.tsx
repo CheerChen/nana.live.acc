@@ -65,7 +65,7 @@ const FloatingActionBar: React.FC<FloatingActionBarProps> = ({
           <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, minWidth: 0 }}>
             <Typography
               sx={{
-                fontFamily: '"Shippori Mincho", "Noto Serif JP", serif',
+                fontFamily: '"Shippori Mincho", serif',
                 fontSize: { xs: 22, sm: 28 },
                 fontWeight: 600,
                 color: accent,
