@@ -326,7 +326,7 @@ class StaticDataService {
     await this.loadData();
     
     // Sort by date descending
-    return [...this.shows].sort((a, b) => b.date.localeCompare(a.date));
+    return this.shows.toSorted((a, b) => b.date.localeCompare(a.date));
   }
 
   /**
@@ -337,7 +337,7 @@ class StaticDataService {
   async getGroupedShows(): Promise<{ groupName: string; shows: LiveShow[] }[]> {
     await this.loadData();
 
-    const sortedShows = [...this.shows].sort((a, b) => b.date.localeCompare(a.date));
+    const sortedShows = this.shows.toSorted((a, b) => b.date.localeCompare(a.date));
 
     const groups = new Map<string, LiveShow[]>();
     sortedShows.forEach((show) => {
@@ -443,7 +443,7 @@ class StaticDataService {
       };
     }
 
-    const showsByDateAsc = [...shows].sort((a, b) => a.date.localeCompare(b.date));
+    const showsByDateAsc = shows.toSorted((a, b) => a.date.localeCompare(b.date));
     const debutYear = showsByDateAsc[0].date.slice(0, 4);
     const latestShow = showsByDateAsc[showsByDateAsc.length - 1];
 
@@ -461,8 +461,8 @@ class StaticDataService {
       .map(([year, count]) => ({ year, count }))
       .sort((a, b) => b.year.localeCompare(a.year));
 
-    const recent = [...shows]
-      .sort((a, b) => b.date.localeCompare(a.date))
+    const recent = shows
+      .toSorted((a, b) => b.date.localeCompare(a.date))
       .slice(0, 5);
 
     return {

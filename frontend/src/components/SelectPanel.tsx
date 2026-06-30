@@ -54,17 +54,17 @@ const SelectPanel: React.FC<SelectPanelProps> = ({
   const filteredGroups = useMemo(() => {
     if (!groupFilter.trim()) return groupedShows;
     const q = groupFilter.toLowerCase();
-    return groupedShows
-      .map((g) => ({
-        groupName: g.groupName,
-        shows: g.shows.filter(
-          (s) =>
-            s.performance_name.toLowerCase().includes(q) ||
-            s.venue.toLowerCase().includes(q) ||
-            g.groupName.toLowerCase().includes(q),
-        ),
-      }))
-      .filter((g) => g.shows.length > 0);
+    const result: { groupName: string; shows: typeof groupedShows[number]['shows'] }[] = [];
+    for (const g of groupedShows) {
+      const shows = g.shows.filter(
+        (s) =>
+          s.performance_name.toLowerCase().includes(q) ||
+          s.venue.toLowerCase().includes(q) ||
+          g.groupName.toLowerCase().includes(q),
+      );
+      if (shows.length > 0) result.push({ groupName: g.groupName, shows });
+    }
+    return result;
   }, [groupedShows, groupFilter]);
 
   const hasFilter = groupFilter.trim().length > 0;

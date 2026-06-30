@@ -29,6 +29,151 @@ export interface AnalysisSnapshot {
   totalSongs: number;
 }
 
+// ── Analysis table ─────────────────────────────────────────────────
+// Extracted so the parent AnalysisPanel stays under the giant-component
+// threshold. Renders the sortable table head + paginated body rows.
+interface AnalysisTableProps {
+  displayedSongs: SongAnalysis[];
+  maxHit: number;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onToggleSort: (key: SortKey) => void;
+  onOpenSong: (songId: number) => void;
+  accent: string;
+  darkMode: boolean;
+  isMobile: boolean;
+  truncatedCount: number;
+}
+
+const AnalysisTable: React.FC<AnalysisTableProps> = ({
+  displayedSongs,
+  maxHit,
+  sortKey,
+  sortDir,
+  onToggleSort,
+  onOpenSong,
+  accent,
+  darkMode,
+  isMobile,
+  truncatedCount,
+}) => {
+  const { t } = useTranslation();
+
+  return (
+    <TableContainer sx={{ borderTop: '1px solid', borderColor: 'divider' }}>
+      <Table stickyHeader size={isMobile ? 'small' : 'medium'} sx={{ tableLayout: 'fixed' }}>
+        <TableHead>
+          <TableRow sx={{ '& th': { border: 0, borderBottom: '1px solid', borderColor: 'divider' } }}>
+            <TableCell sx={{ width: 56, color: 'text.secondary', backgroundColor: 'background.default' }}>
+              <Typography variant="overline">#</Typography>
+            </TableCell>
+            <TableCell sx={{ backgroundColor: 'background.default' }}>
+              <TableSortLabel
+                active={sortKey === 'song_name'}
+                direction={sortKey === 'song_name' ? sortDir : 'asc'}
+                onClick={() => onToggleSort('song_name')}
+              >
+                <Typography variant="overline">{t('table.songName')}</Typography>
+              </TableSortLabel>
+            </TableCell>
+            <TableCell align="right" sx={{ width: { xs: 80, md: 140 }, backgroundColor: 'background.default' }}>
+              <TableSortLabel
+                active={sortKey === 'hit_count'}
+                direction={sortKey === 'hit_count' ? sortDir : 'desc'}
+                onClick={() => onToggleSort('hit_count')}
+              >
+                <Typography variant="overline">{t('table.hitCount')}</Typography>
+              </TableSortLabel>
+            </TableCell>
+            <TableCell
+              align="right"
+              sx={{ width: { xs: 80, md: 120 }, display: { xs: 'none', sm: 'table-cell' }, backgroundColor: 'background.default' }}
+            >
+              <TableSortLabel
+                active={sortKey === 'total_appearances'}
+                direction={sortKey === 'total_appearances' ? sortDir : 'desc'}
+                onClick={() => onToggleSort('total_appearances')}
+              >
+                <Typography variant="overline">{t('table.totalAppearances')}</Typography>
+              </TableSortLabel>
+            </TableCell>
+            <TableCell align="right" sx={{ width: { xs: 80, md: 100 }, backgroundColor: 'background.default' }}>
+              <TableSortLabel
+                active={sortKey === 'selection_rate'}
+                direction={sortKey === 'selection_rate' ? sortDir : 'desc'}
+                onClick={() => onToggleSort('selection_rate')}
+              >
+                <Typography variant="overline">{t('table.selectionRate')}</Typography>
+              </TableSortLabel>
+            </TableCell>
+            <TableCell sx={{ width: { md: '32%' }, display: { xs: 'none', md: 'table-cell' }, backgroundColor: 'background.default' }}>
+              <Typography variant="overline">{t('table.latestPerformance')}</Typography>
+            </TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {displayedSongs.map((row, idx) => {
+            const rate = Number(row.selection_rate) || 0;
+            const hit = row.hit_count || 0;
+            const barWidth = maxHit > 0 ? (hit / maxHit) * 100 : 0;
+            return (
+              <TableRow
+                key={row.id}
+                hover
+                onClick={() => onOpenSong(row.id)}
+                sx={{
+                  cursor: 'pointer',
+                  '& td': { border: 0, borderBottom: '1px solid', borderColor: 'divider', py: 1.25 },
+                  transition: 'background 120ms ease',
+                  '&:hover': { backgroundColor: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' },
+                  '&:hover .song-name': { color: accent },
+                }}
+              >
+                <TableCell sx={{ color: 'text.secondary', fontFeatureSettings: '"tnum"' }}>
+                  {String(idx + 1).padStart(2, '0')}
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" className="song-name" sx={{ fontWeight: 500, transition: 'color 120ms ease' }}>
+                    {row.song_name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', md: 'none' }, mt: 0.5 }} noWrap>
+                    {row.latest_performance}
+                  </Typography>
+                </TableCell>
+                <TableCell align="right">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
+                    <Box sx={{ position: 'relative', width: { xs: 24, md: 64 }, height: 2, backgroundColor: 'divider', display: { xs: 'none', md: 'block' } }}>
+                      <Box sx={{ position: 'absolute', inset: 0, width: `${barWidth}%`, backgroundColor: accent }} />
+                    </Box>
+                    <Typography variant="body2" sx={{ fontFeatureSettings: '"tnum"', fontWeight: 600, minWidth: 28, textAlign: 'right' }}>
+                      {hit}
+                    </Typography>
+                  </Box>
+                </TableCell>
+                <TableCell align="right" sx={{ fontFeatureSettings: '"tnum"', color: 'text.secondary', display: { xs: 'none', sm: 'table-cell' } }}>
+                  {row.total_appearances}
+                </TableCell>
+                <TableCell align="right" sx={{ fontFeatureSettings: '"tnum"', color: 'text.secondary' }}>
+                  {(rate * 100).toFixed(1)}%
+                </TableCell>
+                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                  <Typography variant="body2" noWrap>{row.latest_performance}</Typography>
+                  <Typography variant="caption" color="text.secondary" noWrap>{row.latest_venue}</Typography>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+      {truncatedCount > 0 && (
+        <Typography sx={{ mt: 1.5, px: 2, pb: 1, fontSize: 11, color: 'text.disabled', letterSpacing: '0.04em', display: 'block' }}>
+          {t('labels.moreCount', { n: truncatedCount })}
+        </Typography>
+      )}
+    </TableContainer>
+  );
+};
+
 interface AnalysisPanelProps {
   analysisTab: AnalysisMode;
   onAnalysisTabChange: (next: AnalysisMode) => void;
@@ -185,187 +330,18 @@ const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
       )}
 
       {activeAnalysis && activeSongs.length > 0 && (
-        <TableContainer
-          sx={{
-            borderTop: '1px solid',
-            borderColor: 'divider',
-          }}
-        >
-          <Table stickyHeader size={isMobile ? 'small' : 'medium'} sx={{ tableLayout: 'fixed' }}>
-            <TableHead>
-              <TableRow sx={{ '& th': { border: 0, borderBottom: '1px solid', borderColor: 'divider' } }}>
-                <TableCell sx={{ width: 56, color: 'text.secondary', backgroundColor: 'background.default' }}>
-                  <Typography variant="overline">#</Typography>
-                </TableCell>
-                <TableCell sx={{ backgroundColor: 'background.default' }}>
-                  <TableSortLabel
-                    active={sortKey === 'song_name'}
-                    direction={sortKey === 'song_name' ? sortDir : 'asc'}
-                    onClick={() => onToggleSort('song_name')}
-                  >
-                    <Typography variant="overline">{t('table.songName')}</Typography>
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell align="right" sx={{ width: { xs: 80, md: 140 }, backgroundColor: 'background.default' }}>
-                  <TableSortLabel
-                    active={sortKey === 'hit_count'}
-                    direction={sortKey === 'hit_count' ? sortDir : 'desc'}
-                    onClick={() => onToggleSort('hit_count')}
-                  >
-                    <Typography variant="overline">{t('table.hitCount')}</Typography>
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell
-                  align="right"
-                  sx={{
-                    width: { xs: 80, md: 120 },
-                    display: { xs: 'none', sm: 'table-cell' },
-                    backgroundColor: 'background.default',
-                  }}
-                >
-                  <TableSortLabel
-                    active={sortKey === 'total_appearances'}
-                    direction={sortKey === 'total_appearances' ? sortDir : 'desc'}
-                    onClick={() => onToggleSort('total_appearances')}
-                  >
-                    <Typography variant="overline">{t('table.totalAppearances')}</Typography>
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell align="right" sx={{ width: { xs: 80, md: 100 }, backgroundColor: 'background.default' }}>
-                  <TableSortLabel
-                    active={sortKey === 'selection_rate'}
-                    direction={sortKey === 'selection_rate' ? sortDir : 'desc'}
-                    onClick={() => onToggleSort('selection_rate')}
-                  >
-                    <Typography variant="overline">{t('table.selectionRate')}</Typography>
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell
-                  sx={{
-                    width: { md: '32%' },
-                    display: { xs: 'none', md: 'table-cell' },
-                    backgroundColor: 'background.default',
-                  }}
-                >
-                  <Typography variant="overline">{t('table.latestPerformance')}</Typography>
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {displayedSongs.map((row, idx) => {
-                const rate = Number(row.selection_rate) || 0;
-                const hit = row.hit_count || 0;
-                const barWidth = maxHit > 0 ? (hit / maxHit) * 100 : 0;
-                return (
-                  <TableRow
-                    key={row.id}
-                    hover
-                    onClick={() => onOpenSong(row.id)}
-                    sx={{
-                      cursor: 'pointer',
-                      '& td': { border: 0, borderBottom: '1px solid', borderColor: 'divider', py: 1.25 },
-                      transition: 'background 120ms ease',
-                      '&:hover': {
-                        backgroundColor: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-                      },
-                      '&:hover .song-name': { color: accent },
-                    }}
-                  >
-                    <TableCell sx={{ color: 'text.secondary', fontFeatureSettings: '"tnum"' }}>
-                      {String(idx + 1).padStart(2, '0')}
-                    </TableCell>
-                    <TableCell>
-                      <Typography
-                        variant="body2"
-                        className="song-name"
-                        sx={{ fontWeight: 500, transition: 'color 120ms ease' }}
-                      >
-                        {row.song_name}
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ display: { xs: 'block', md: 'none' }, mt: 0.5 }}
-                        noWrap
-                      >
-                        {row.latest_performance}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
-                        <Box
-                          sx={{
-                            position: 'relative',
-                            width: { xs: 24, md: 64 },
-                            height: 2,
-                            backgroundColor: 'divider',
-                            display: { xs: 'none', md: 'block' },
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              position: 'absolute',
-                              inset: 0,
-                              width: `${barWidth}%`,
-                              backgroundColor: accent,
-                            }}
-                          />
-                        </Box>
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            fontFeatureSettings: '"tnum"',
-                            fontWeight: 600,
-                            minWidth: 28,
-                            textAlign: 'right',
-                          }}
-                        >
-                          {hit}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{
-                        fontFeatureSettings: '"tnum"',
-                        color: 'text.secondary',
-                        display: { xs: 'none', sm: 'table-cell' },
-                      }}
-                    >
-                      {row.total_appearances}
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontFeatureSettings: '"tnum"', color: 'text.secondary' }}>
-                      {(rate * 100).toFixed(1)}%
-                    </TableCell>
-                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
-                      <Typography variant="body2" noWrap>
-                        {row.latest_performance}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" noWrap>
-                        {row.latest_venue}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-          {truncatedCount > 0 && (
-            <Typography
-              sx={{
-                mt: 1.5,
-                px: 2,
-                pb: 1,
-                fontSize: 11,
-                color: 'text.disabled',
-                letterSpacing: '0.04em',
-                display: 'block',
-              }}
-            >
-              {t('labels.moreCount', { n: truncatedCount })}
-            </Typography>
-          )}
-        </TableContainer>
+        <AnalysisTable
+          displayedSongs={displayedSongs}
+          maxHit={maxHit}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onToggleSort={onToggleSort}
+          onOpenSong={onOpenSong}
+          accent={accent}
+          darkMode={darkMode}
+          isMobile={isMobile}
+          truncatedCount={truncatedCount}
+        />
       )}
     </Box>
   );

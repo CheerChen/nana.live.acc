@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -50,7 +50,6 @@ interface RightDrawerProps {
 
 const CROSSFADE_MS = 150;
 const formatDate = (iso: string) => iso.replace(/-/g, '.');
-const renderShortDate = (iso: string) => iso.slice(5).replace('-', '.');
 
 const RightDrawer: React.FC<RightDrawerProps> = ({
   open,
@@ -74,32 +73,51 @@ const RightDrawer: React.FC<RightDrawerProps> = ({
 }) => {
   const { t } = useTranslation();
 
-  // Persist the displayed type across `open` flips so the slide-out animation
-  // keeps showing the last body. Only crossfade when type changes while open.
-  const [displayedType, setDisplayedType] = useState<RightPanelType | null>(type);
-  const [bodyVisible, setBodyVisible] = useState(true);
+  // Single display-state object holds the crossfade animation state so we
+  // avoid cascading setState calls and prop-derived useState.
+  const [display, setDisplay] = useState<{
+    displayedType: RightPanelType | null;
+    bodyVisible: boolean;
+    pendingType: RightPanelType | null;
+  }>({
+    displayedType: null,
+    bodyVisible: true,
+    pendingType: null,
+  });
 
+  // Track previous props to detect changes inline during render (no effect).
+  // Refs are used instead of useState because these values are never shown.
+  const prevOpenRef = useRef<boolean | null>(null);
+  const prevTypeRef = useRef<RightPanelType | null | undefined>(undefined);
+
+  if (open !== prevOpenRef.current || type !== prevTypeRef.current) {
+    const wasFirstRender = prevTypeRef.current === undefined;
+    prevOpenRef.current = open;
+    prevTypeRef.current = type;
+    if (wasFirstRender || !open) {
+      // First render or drawer closed: sync silently so the next open is fresh.
+      setDisplay({ displayedType: type, bodyVisible: true, pendingType: null });
+    } else if (type !== display.displayedType && display.pendingType !== type) {
+      // Type changed while open: start the crossfade.
+      setDisplay((d) => ({ ...d, bodyVisible: false, pendingType: type }));
+    }
+  }
+
+  // Timed crossfade: swap the displayed type after the fade-out duration.
   useEffect(() => {
-    if (!open) return;
-    if (type === displayedType) return;
-    setBodyVisible(false);
+    if (display.pendingType === null) return;
     const handle = setTimeout(() => {
-      setDisplayedType(type);
-      setBodyVisible(true);
+      setDisplay((d) => ({
+        displayedType: d.pendingType,
+        bodyVisible: true,
+        pendingType: null,
+      }));
     }, CROSSFADE_MS);
     return () => clearTimeout(handle);
-  }, [type, open, displayedType]);
-
-  // When the drawer is fully closed, sync silently so the next open uses
-  // the new type immediately (no fade ghost from a stale body).
-  useEffect(() => {
-    if (open) return;
-    setDisplayedType(type);
-    setBodyVisible(true);
-  }, [open, type]);
+  }, [display.pendingType]);
 
   const headerLabel =
-    displayedType === 'analysis'
+    display.displayedType === 'analysis'
       ? t('labels.analysisSection')
       : t('labels.tourSetlistSection');
 
@@ -141,7 +159,7 @@ const RightDrawer: React.FC<RightDrawerProps> = ({
             letterSpacing: '0.22em',
             flexGrow: 1,
             transition: `opacity ${CROSSFADE_MS}ms ease`,
-            opacity: bodyVisible ? 1 : 0,
+            opacity: display.bodyVisible ? 1 : 0,
           }}
         >
           {headerLabel}
@@ -153,11 +171,11 @@ const RightDrawer: React.FC<RightDrawerProps> = ({
 
       <Box
         sx={{
-          opacity: bodyVisible ? 1 : 0,
+          opacity: display.bodyVisible ? 1 : 0,
           transition: `opacity ${CROSSFADE_MS}ms ease`,
         }}
       >
-        {displayedType === 'analysis' && (
+        {display.displayedType === 'analysis' && (
           <AnalysisBody
             heardAnalysis={heardAnalysis}
             missedAnalysis={missedAnalysis}
@@ -172,7 +190,7 @@ const RightDrawer: React.FC<RightDrawerProps> = ({
             darkMode={darkMode}
           />
         )}
-        {displayedType === 'setlist' && (
+        {display.displayedType === 'setlist' && (
           <SetlistBody
             group={group}
             matrix={matrix}
@@ -461,7 +479,7 @@ const SetlistBody: React.FC<SetlistBodyProps> = ({
                         userSelect: 'none',
                       }}
                     >
-                      {renderShortDate(show.date)}
+                      {show.date.slice(5).replace('-', '.')}
                     </Typography>
                   </Tooltip>
                 ))}
