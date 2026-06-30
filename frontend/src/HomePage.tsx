@@ -51,6 +51,15 @@ const SongDetailModal = React.lazy(() =>
 
 type RightPanelType = 'setlist' | 'analysis';
 
+type RightPanelState = {
+  open: boolean;
+  type: RightPanelType | null;
+  group: ShowGroup | null;
+  matrix: TourMatrix | null;
+  matrixLoading: boolean;
+};
+type SongModalState = { open: boolean; detail: SongDetail | null; loading: boolean };
+
 const STORAGE_KEY = 'nana-selected-shows';
 const THEME_STORAGE_KEY = 'nana-theme-mode';
 const EXPIRY_DAYS = 7;
@@ -358,26 +367,20 @@ function useHomePageState() {
     dir: 'desc',
   });
   const [drawers, setDrawers] = useState<{
-    rightPanel: {
-      open: boolean;
-      type: RightPanelType | null;
-      group: ShowGroup | null;
-      matrix: TourMatrix | null;
-      matrixLoading: boolean;
-    };
-    songModal: { open: boolean; detail: SongDetail | null; loading: boolean };
+    rightPanel: RightPanelState;
+    songModal: SongModalState;
   }>({
     rightPanel: { open: false, type: null, group: null, matrix: null, matrixLoading: false },
     songModal: { open: false, detail: null, loading: false },
   });
 
   const setRightPanel = useCallback(
-    (updater: (prev: typeof drawers.rightPanel) => typeof drawers.rightPanel) =>
+    (updater: (prev: RightPanelState) => RightPanelState) =>
       setDrawers((d) => ({ ...d, rightPanel: updater(d.rightPanel) })),
     [],
   );
   const setSongModal = useCallback(
-    (updater: (prev: typeof drawers.songModal) => typeof drawers.songModal) =>
+    (updater: (prev: SongModalState) => SongModalState) =>
       setDrawers((d) => ({ ...d, songModal: updater(d.songModal) })),
     [],
   );
