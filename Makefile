@@ -7,7 +7,7 @@ VENV_DIR = venv
 REQUIREMENTS = requirements.txt
 SCRIPT = scripts/crawler.py
 DDL_FILE = database/ddl.sql
-FRONTEND_PORT = 3000
+FRONTEND_PORT = 5173
 
 # Default target
 .PHONY: help
@@ -155,7 +155,7 @@ dev-setup: setup frontend-install
 .PHONY: start-frontend
 start-frontend:
 	@echo "Starting frontend development server on port $(FRONTEND_PORT)..."
-	cd frontend && npm start
+	cd frontend && npm run dev
 
 # Show project status
 .PHONY: status
